@@ -6,37 +6,37 @@
 ![Protocol: ESP--NOW](https://img.shields.io/badge/Protocol-ESP--NOW-orange.svg)
 ![Status: Initial Testing](https://img.shields.io/badge/Status-Initial%20Testing-green.svg)
 
-**JAM-BI** è un ecosistema firmware basato su microcontrollori **ESP32** progettato per il controllo remoto wireless di periferiche multimediali e attuatori. Il sistema sfrutta il protocollo ad alte prestazioni **ESP-NOW** per far comunicare un'unità centrale (Master) dotata di interfaccia grafica Touchscreen con uno o più nodi periferici (Client/Slave).
+**JAM-BI** is a firmware ecosystem based on **ESP32** microcontrollers designed for the wireless remote control of multimedia peripherals and actuators. The system leverages the high-performance **ESP-NOW** protocol to enable communication between a central unit (Master) equipped with a Touchscreen graphical user interface and one or more peripheral nodes (Client/Slave).
 
-## 📁 Architettura del Progetto
+## 📁 Project Architecture
 
-Il cuore del codice si trova all'interno della cartella `firmware/`, divisa nelle seguenti componenti principali per i test iniziali:
+The core codebase is located within the `firmware/` directory, split into the following main components for initial testing:
 
-### 1. JAM-BI Base Master (Interfaccia Utente)
-Il Master gestisce un display **TFT con controller grafico XPT2046 Touchscreen** (connesso tramite bus SPI/HSPI).
-* **Boot Animation**: All'avvio mostra un'animazione custom pixel-art che renderizza il logo aziendale/di progetto.
-* **UI Custom**: Utilizza un motore di rendering del testo pixel-by-pixel ottimizzato per far entrare stringhe lunghe nei pulsanti hardware.
-* **Menu Touch**: Fornisce un'interfaccia a 4 pulsanti principali:
+### 1. JAM-BI Base Master (User Interface)
+The Master manages a **TFT display with an XPT2046 Touchscreen controller** (connected via the SPI/HSPI bus).
+* **Boot Animation**: Displays a custom pixel-art animation at startup that renders the project logo.
+* **Custom UI**: Utilizes a lightweight pixel-by-pixel text rendering engine optimized to fit long strings neatly within the geometric button bounds.
+* **Touch Menu**: Provides an interface with 4 main action buttons:
   * `JAMMER`
-  * `UMIDIFICATORE`
+  * `UMIDIFICATORE` (Humidifier)
   * `MEDIA`
   * `HELP`
-* **Calibrazione**: Mappatura millimetrica degli assi del touchscreen per la modalità verticale (`Rotation 2`).
+* **Calibration**: Features precise axis mapping calibrated for portrait mode orientation (`Rotation 2`).
 
-### 2. SkibidiFart Base Client (Periferica Attuatrice)
-Lo Slave riceve i pacchetti dati strutturati dal Master e mappa le azioni sull'hardware locale. Gestisce:
-* **Audio DFPlayer Mini**: Controllo completo di un lettore MP3-TF-16P via seriale hardware (`HardwareSerial 2`), con gestione del volume, play/pausa, stop, inserimento/rimozione della scheda SD e tracciamento dinamico del numero di tracce presenti.
-* **Relè Umidificatore**: Controllo dello stato On/Off di un carico a relè (configurato sul pin `GPIO 4`).
-* **Auto-Pairing**: Registrazione automatica del MAC Address del Master alla ricezione del primo pacchetto utile.
+### 2. SkibidiFart Base Client (Peripheral Actuator)
+The Slave node listens for structured data packets sent by the Master and maps actions to the local hardware. It manages:
+* **DFPlayer Mini Audio**: Full control of an MP3-TF-16P player via hardware serial (`HardwareSerial 2`), including volume adjustment, play/pause, stop, SD card detection, and dynamic tracking of total audio files.
+* **Humidifier Relay**: Toggles the On/Off state of a relay load (configured on `GPIO 4`).
+* **Auto-Pairing**: Automatically registers the Master's MAC Address upon receiving the first valid data packet.
 
 ---
 
-## 📡 Protocollo di Comunicazione (ESP-NOW)
+## 📡 Communication Protocol (ESP-NOW)
 
-I due moduli si scambiano una struttura dati fissa chiamata `Comando`:
+The two modules exchange a fixed data structure called `Comando`:
 
 ```cpp
 typedef struct {
-  uint8_t action;   // ID del Comando (es. 1=Play, 2=Toggle Relè, 3=Volume...)
-  uint16_t value;   // Valore numerico associato (es. ID traccia, livello volume)
+  uint8_t action;   // Command ID (e.g., 1=Play, 2=Toggle Relay, 3=Volume...)
+  uint16_t value;   // Associated numerical value (e.g., Track ID, volume level)
 } Comando;
