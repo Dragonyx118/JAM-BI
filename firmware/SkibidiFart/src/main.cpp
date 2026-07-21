@@ -3,7 +3,7 @@
 #include <HardwareSerial.h>
 #include <DFRobotDFPlayerMini.h>
 
-#define RELAY_PIN 4       // pin del relè umidificatore (spostato da 26, ora libero per UART)
+#define RELAY_PIN 4       // Pin del relè umidificatore
 #define RXD2 27           // RX ESP32 <- TX DFPlayer
 #define TXD2 26           // TX ESP32 -> RX DFPlayer (resistenza 1k in serie)
 
@@ -128,7 +128,7 @@ void setup() {
 
   mySerial.begin(9600, SERIAL_8N1, RXD2, TXD2);
 
-  delay(1000); // tempo per l'avvio del modulo MP3-TF-16P
+  delay(1000); // Tempo per l'avvio del modulo MP3-TF-16P
 
   Serial.println("Inizializzo DFPlayer...");
 
@@ -148,22 +148,22 @@ void setup() {
   }
 
   if (dfplayerPronto) {
-  player.volume(20);
-  delay(1000); // delay più lungo prima di interrogare la SD
+    player.volume(20);
+    delay(1000); // Delay per stabilizzare la lettura SD
 
-  numeroTracce = player.readFileCounts();
-  
-  // se fallisce, riprova un paio di volte
-  int tentativi = 0;
-  while (numeroTracce == 65535 && tentativi < 3) {
-    Serial.println("Retry lettura conteggio tracce...");
-    delay(500);
     numeroTracce = player.readFileCounts();
-    tentativi++;
+    
+    // Se fallisce, riprova un paio di volte
+    int tentativi = 0;
+    while (numeroTracce == 65535 && tentativi < 3) {
+      Serial.println("Retry lettura conteggio tracce...");
+      delay(500);
+      numeroTracce = player.readFileCounts();
+      tentativi++;
+    }
+    
+    Serial.printf("Tracce trovate all'avvio: %d\n", numeroTracce);
   }
-  
-  Serial.printf("Tracce trovate all'avvio: %d\n", numeroTracce);
-}
 
   WiFi.mode(WIFI_STA);
   Serial.print("MAC di questo slave: ");
@@ -176,15 +176,12 @@ void setup() {
 
   esp_now_register_recv_cb(onDataRecv);
 
-  if (dfplayerPronto) {
-    delay(500);
-    Serial.println("Test: provo a riprodurre traccia 1...");
-    player.play(1);
-  }
+  // NOTA: Il blocco di test "player.play(1)" è stato rimosso.
+  // Lo slave ora rimane in attesa dei comandi ESP-NOW inviati dal Master.
 }
 
 void loop() {
-  // gestisce le notifiche asincrone del DFPlayer (SD inserita/rimossa, fine traccia, errori)
+  // Gestisce le notifiche asincrone del DFPlayer
   if (player.available()) {
     stampaErroreDFPlayer(player.readType(), player.read());
   }
