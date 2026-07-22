@@ -44,7 +44,7 @@ struct Pulsante {
 
 // Menu Principale (Grafica Originale)
 Pulsante menuPulsanti[4] = {
-  {20, 170, 280, 50, "Banana"},        
+  {20, 170, 280, 50, "JAMMER"},        
   {20, 240, 280, 50, "HUMIDIFIER"},
   {20, 310, 280, 50, "MEDIA"},
   {20, 380, 280, 50, "HELP"}
@@ -366,7 +366,7 @@ void mostraMenuBanana() {
 
   tft.setTextColor(TFT_GREEN, TFT_BLACK);
   tft.setTextSize(3);
-  tft.drawCentreString("BANANA", 160, 20, 1);
+  tft.drawCentreString("JAMMER", 160, 20, 1);
   tft.drawFastHLine(20, 42, 280, TFT_GREEN);
   tft.setTextSize(1);
 
@@ -467,7 +467,7 @@ void loop() {
               y_mappato >= menuPulsanti[i].y && y_mappato <= (menuPulsanti[i].y + menuPulsanti[i].h)) {
             
             if (i == 0) {
-              Serial.println("banana premuto");
+              Serial.println("JAMMER PREMUTO");
               sistemaStato = 4;
               mostraMenuBanana();
             } 
@@ -602,7 +602,7 @@ void loop() {
               y_mappato >= bananaBtn[i].y && y_mappato <= (bananaBtn[i].y + bananaBtn[i].h)) {
             bananaPotenza = i; // 0=OFF, 1=POT1, 2=POT2+, 3=MAX
             inviaAlSlave(5, bananaPotenza); // Action 5: Potenza Banana
-            Serial.printf("Banana potenza impostata: %d\n", bananaPotenza);
+            Serial.printf("JAMMER potenza impostata: %d\n", bananaPotenza);
 
             disegnaPulsantiBanana(); // Aggiorna evidenziazione pulsante attivo
             disegnaOnda();           // Aggiorna l'onda in base alla nuova potenza
