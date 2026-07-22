@@ -26,9 +26,10 @@ float faseOnda = 0.0;          // Fase corrente dell'onda (per l'animazione)
 unsigned long ultimoTremore = 0; // Timestamp ultimo aggiornamento tremolio
 
 // --- VARIABILI SCHERMATA HUMIDIFIER ---
+// --- VARIABILI SCHERMATA HUMIDIFIER ---
 int humidifierTimerIndex = 0;                 // Indice del preset timer selezionato
-const int humidifierPresets[5] = {0, 30, 60, 120, 300}; // secondi (0 = infinito)
-const char* humidifierPresetLabel[5] = {"INFINITO", "30 sec", "60 sec", "2 min", "5 min"};
+const int humidifierPresets[5] = {0, 5, 10, 15, 30}; // Secondi ridotti (0 = infinito)
+const char* humidifierPresetLabel[5] = {"INFINITO", "5 sec", "10 sec", "15 sec", "30 sec"};
 int humidifierTimerSec = 0;                   // Secondi correnti (0 = nessuno spegnimento automatico)
 unsigned long humidifierAccensioneMillis = 0; // Timestamp di accensione (per countdown)
 unsigned long ultimaParticella = 0;            // Timestamp ultimo aggiornamento animazione particelle
@@ -208,6 +209,7 @@ void mostraMenuPrincipale() {
 // ==========================================================
 
 // Disegna l'icona statica del diffusore (base nera + tubo bianco diagonale, ispirata alla foto)
+// Disegna l'icona del diffusore con il trasduttore nero in cima (come da foto)
 void disegnaIconaUmidificatore() {
   // Base scura (mobile/legno) su cui poggia il diffusore
   tft.fillRect(60, 195, 200, 18, tft.color565(35, 35, 35));
@@ -219,7 +221,7 @@ void disegnaIconaUmidificatore() {
   // Piccolo LED rosso di stato sul corpo
   tft.fillCircle(165, 192, 3, TFT_RED);
 
-  // Tubo bianco diagonale "a gradini" stile pixel-art (come nella foto)
+  // Tubo/Stick bianco diagonale "a gradini" stile pixel-art
   int steps = 8;
   int startX = 195, startY = 178;
   for (int i = 0; i < steps; i++) {
@@ -227,27 +229,37 @@ void disegnaIconaUmidificatore() {
     int py = startY - i * 11;
     tft.fillRect(px, py, 15, 15, TFT_WHITE);
   }
+
+  // --- NUOVO: Il "cosino nero" in cima (il trasduttore piezoelettrico della foto) ---
+  // Posizionato esattamente alla fine del bastoncino bianco
+  int capX = startX - (steps - 1) * 5 + 7; 
+  int capY = startY - (steps - 1) * 11 + 7;
+  
+  tft.fillCircle(capX, capY, 12, tft.color565(50, 50, 50)); // Bordo grigio scuro
+  tft.fillCircle(capX, capY, 8, TFT_BLACK);                // Centro nero del trasduttore
 }
 
-// Aggiorna solo l'animazione delle particelle di vapore (zona sopra il tubo)
+// Aggiorna l'animazione delle particelle facendole uscire dal trasduttore nero
 void aggiornaParticelleUmidificatore() {
-  // Pulisce la zona sopra l'uscita del tubo, senza toccare il resto della UI
-  tft.fillRect(90, 25, 160, 75, TFT_BLACK);
+  // Pulisce l'area di volo del vapore (si ferma appena sopra il trasduttore a Y=84 per non cancellarlo)
+  tft.fillRect(90, 20, 160, 64, TFT_BLACK);
 
   if (humidifierAttivo) {
     for (int i = 0; i < NUM_PARTICELLE; i++) {
       if (!particelle[i].attiva) {
-        // Possibilita' di far nascere una nuova particella dal bocchettone del tubo
+        // Fai nascere la particella esattamente sopra il cerchietto nero (X=167, Y=84)
         if (random(0, 100) < 25) {
-          particelle[i].x = 155 + random(-8, 9);
-          particelle[i].y = 98;
-          particelle[i].velocita = 0.7f + (random(0, 60) / 100.0f);
+          particelle[i].x = 167 + random(-6, 7);
+          particelle[i].y = 84; 
+          particelle[i].velocita = 0.8f + (random(0, 60) / 100.0f);
           particelle[i].attiva = true;
         }
       } else {
         particelle[i].y -= particelle[i].velocita;
-        particelle[i].x += (random(-10, 11) / 12.0f); // leggera oscillazione laterale
-        if (particelle[i].y < 28) {
+        particelle[i].x += (random(-10, 11) / 12.0f); // Leggera oscillazione laterale
+        
+        // Svanisce quando sale troppo in alto
+        if (particelle[i].y < 22) {
           particelle[i].attiva = false;
         } else {
           uint16_t coloreVapore = tft.color565(200, 230, 255);
