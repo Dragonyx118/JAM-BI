@@ -18,12 +18,28 @@ TFT_eSPI tft = TFT_eSPI();
 SPIClass touchSPI(HSPI);
 XPT2046_Touchscreen ts(TOUCH_CS_PIN);
 
-// Stati del sistema: 0=Boot, 1=Menu Principale, 2=Menu Media, 3=Menu Help
+// Stati del sistema: 0=Boot, 1=Menu Principale, 2=Menu Media, 3=Menu Help, 4=Jammer, 5=Humidifier
 int sistemaStato = 0; 
 bool humidifierAttivo = false; 
 int bananaPotenza = 0; // 0=OFF, 1=Potenza1, 2=Potenza2+, 3=Potenza Massima
 float faseOnda = 0.0;          // Fase corrente dell'onda (per l'animazione)
 unsigned long ultimoTremore = 0; // Timestamp ultimo aggiornamento tremolio
+
+// --- VARIABILI SCHERMATA HUMIDIFIER ---
+int humidifierTimerIndex = 0;                 // Indice del preset timer selezionato
+const int humidifierPresets[5] = {0, 30, 60, 120, 300}; // secondi (0 = infinito)
+const char* humidifierPresetLabel[5] = {"INFINITO", "30 sec", "60 sec", "2 min", "5 min"};
+int humidifierTimerSec = 0;                   // Secondi correnti (0 = nessuno spegnimento automatico)
+unsigned long humidifierAccensioneMillis = 0; // Timestamp di accensione (per countdown)
+unsigned long ultimaParticella = 0;            // Timestamp ultimo aggiornamento animazione particelle
+
+#define NUM_PARTICELLE 10
+struct Particella {
+  float x, y;
+  float velocita;
+  bool attiva;
+};
+Particella particelle[NUM_PARTICELLE];
 
 // Struttura dati per i Comandi ESP-NOW
 typedef struct {
@@ -50,9 +66,12 @@ Pulsante menuPulsanti[4] = {
   {20, 380, 280, 50, "HELP"}
 };
 
-// ==========================================
-// GESTIONE TRACCE E PAGINAZIONE (100 TRACCE)
-// ==========================================
+// --- PULSANTI SCHERMATA HUMIDIFIER ---
+Pulsante btnHumOn    = {30, 260, 120, 55, "ON"};
+Pulsante btnHumOff   = {170, 260, 120, 55, "OFF"};
+Pulsante btnHumTimer = {30, 325, 260, 50, "TIMER"};
+Pulsante btnHumBack  = {30, 390, 260, 50, "INDIETRO"};
+
 // ==========================================
 // GESTIONE TRACCE E PAGINAZIONE (119 TRACCE)
 // ==========================================
@@ -184,6 +203,112 @@ void mostraMenuPrincipale() {
   tft.setTextSize(1);      // Ripristino la scala di default
 }
 
+// ==========================================================
+// SCHERMATA HUMIDIFIER: icona pixel-art + ON/OFF + TIMER
+// ==========================================================
+
+// Disegna l'icona statica del diffusore (base nera + tubo bianco diagonale, ispirata alla foto)
+void disegnaIconaUmidificatore() {
+  // Base scura (mobile/legno) su cui poggia il diffusore
+  tft.fillRect(60, 195, 200, 18, tft.color565(35, 35, 35));
+
+  // Corpo nero arrotondato del diffusore
+  tft.fillCircle(180, 205, 24, TFT_BLACK);
+  tft.fillRect(160, 175, 40, 35, TFT_BLACK);
+
+  // Piccolo LED rosso di stato sul corpo
+  tft.fillCircle(165, 192, 3, TFT_RED);
+
+  // Tubo bianco diagonale "a gradini" stile pixel-art (come nella foto)
+  int steps = 8;
+  int startX = 195, startY = 178;
+  for (int i = 0; i < steps; i++) {
+    int px = startX - i * 5;
+    int py = startY - i * 11;
+    tft.fillRect(px, py, 15, 15, TFT_WHITE);
+  }
+}
+
+// Aggiorna solo l'animazione delle particelle di vapore (zona sopra il tubo)
+void aggiornaParticelleUmidificatore() {
+  // Pulisce la zona sopra l'uscita del tubo, senza toccare il resto della UI
+  tft.fillRect(90, 25, 160, 75, TFT_BLACK);
+
+  if (humidifierAttivo) {
+    for (int i = 0; i < NUM_PARTICELLE; i++) {
+      if (!particelle[i].attiva) {
+        // Possibilita' di far nascere una nuova particella dal bocchettone del tubo
+        if (random(0, 100) < 25) {
+          particelle[i].x = 155 + random(-8, 9);
+          particelle[i].y = 98;
+          particelle[i].velocita = 0.7f + (random(0, 60) / 100.0f);
+          particelle[i].attiva = true;
+        }
+      } else {
+        particelle[i].y -= particelle[i].velocita;
+        particelle[i].x += (random(-10, 11) / 12.0f); // leggera oscillazione laterale
+        if (particelle[i].y < 28) {
+          particelle[i].attiva = false;
+        } else {
+          uint16_t coloreVapore = tft.color565(200, 230, 255);
+          tft.fillCircle((int)particelle[i].x, (int)particelle[i].y, 2, coloreVapore);
+        }
+      }
+    }
+  }
+}
+
+void mostraMenuHumidifier() {
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextDatum(MC_DATUM);
+
+  tft.setTextColor(TFT_CYAN, TFT_BLACK);
+  tft.setTextSize(3);
+  tft.drawCentreString("HUMIDIFIER", 160, 20, 1);
+  tft.drawFastHLine(20, 42, 280, TFT_CYAN);
+  tft.setTextSize(1);
+
+  // Icona statica del diffusore
+  disegnaIconaUmidificatore();
+
+  // Reset di tutte le particelle ad ogni ingresso in questa schermata
+  for (int i = 0; i < NUM_PARTICELLE; i++) particelle[i].attiva = false;
+
+  // Testo di stato
+  tft.setTextSize(2);
+  tft.setTextColor(humidifierAttivo ? TFT_GREEN : TFT_RED, TFT_BLACK);
+  tft.drawCentreString(humidifierAttivo ? "STATO: ACCESO" : "STATO: SPENTO", 160, 232, 1);
+  tft.setTextSize(1);
+
+  tft.setTextSize(3);
+
+  // Bottone ON
+  tft.drawRect(btnHumOn.x, btnHumOn.y, btnHumOn.w, btnHumOn.h, TFT_GREEN);
+  tft.setTextColor(TFT_GREEN, TFT_BLACK);
+  tft.drawCentreString("ON", btnHumOn.x + (btnHumOn.w / 2), btnHumOn.y + (btnHumOn.h / 2) - 3, 1);
+
+  // Bottone OFF
+  tft.drawRect(btnHumOff.x, btnHumOff.y, btnHumOff.w, btnHumOff.h, TFT_RED);
+  tft.setTextColor(TFT_RED, TFT_BLACK);
+  tft.drawCentreString("OFF", btnHumOff.x + (btnHumOff.w / 2), btnHumOff.y + (btnHumOff.h / 2) - 3, 1);
+
+  // Bottone TIMER (mostra il preset corrente, tocco per cambiarlo)
+  char timerLabel[24];
+  snprintf(timerLabel, sizeof(timerLabel), "TIMER: %s", humidifierPresetLabel[humidifierTimerIndex]);
+  tft.drawRect(btnHumTimer.x, btnHumTimer.y, btnHumTimer.w, btnHumTimer.h, TFT_YELLOW);
+  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+  tft.setTextSize(2);
+  tft.drawCentreString(timerLabel, btnHumTimer.x + (btnHumTimer.w / 2), btnHumTimer.y + (btnHumTimer.h / 2) - 3, 1);
+  tft.setTextSize(3);
+
+  // Bottone BACK
+  tft.drawRect(btnHumBack.x, btnHumBack.y, btnHumBack.w, btnHumBack.h, TFT_WHITE);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawCentreString("INDIETRO", btnHumBack.x + (btnHumBack.w / 2), btnHumBack.y + (btnHumBack.h / 2) - 3, 1);
+
+  tft.setTextSize(1);
+}
+
 void mostraMenuMedia() {
   tft.fillScreen(TFT_BLACK);
   tft.setTextDatum(MC_DATUM);
@@ -271,7 +396,7 @@ void mostraMenuHelp() {
   tft.setTextColor(TFT_GREEN, TFT_BLACK);
   tft.drawString("- HUMIDIFIER:", 20, 140, 1);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.drawString("  Attiva/Disattiva il rele' Slave.", 20, 165, 1);
+  tft.drawString("  ON/OFF + timer di spegnimento.", 20, 165, 1);
   
   tft.setTextColor(TFT_GREEN, TFT_BLACK);
   tft.drawString("- MEDIA:", 20, 205, 1);
@@ -390,6 +515,7 @@ void mostraMenuBanana() {
 void setup() {
   Serial.begin(115200);
   delay(500);
+  randomSeed(analogRead(0)); // seme casuale per l'animazione delle particelle
 
   tft.init();
   tft.setRotation(2); // Rotazione display originale
@@ -424,6 +550,17 @@ void setup() {
 }
 
 void loop() {
+  // Spegnimento automatico dell'humidifier se il timer e' scaduto (attivo indipendentemente
+  // dalla schermata in cui ci si trova, per sicurezza).
+  if (humidifierAttivo && humidifierTimerSec > 0) {
+    if (millis() - humidifierAccensioneMillis >= (unsigned long)humidifierTimerSec * 1000UL) {
+      humidifierAttivo = false;
+      inviaAlSlave(2, 0);
+      Serial.println("Humidifier spento automaticamente (timer scaduto)");
+      if (sistemaStato == 5) mostraMenuHumidifier();
+    }
+  }
+
   // Animazione tremolio onda Banana: si aggiorna da sola quando la potenza e' attiva,
   // indipendentemente dal touch, cosi' l'onda "vive" mentre e' accesa.
   if (sistemaStato == 4 && bananaPotenza != 0) {
@@ -431,6 +568,14 @@ void loop() {
       faseOnda += 0.35;
       disegnaOnda();
       ultimoTremore = millis();
+    }
+  }
+
+  // Animazione particelle di vapore nella schermata Humidifier
+  if (sistemaStato == 5) {
+    if (millis() - ultimaParticella > 120) {
+      aggiornaParticelleUmidificatore();
+      ultimaParticella = millis();
     }
   }
 
@@ -472,9 +617,9 @@ void loop() {
               mostraMenuBanana();
             } 
             else if (i == 1) {
-              humidifierAttivo = !humidifierAttivo;
-              inviaAlSlave(2, humidifierAttivo ? 1 : 0); 
-              mostraMenuPrincipale();
+              // Apre la nuova schermata dedicata all'humidifier invece di attivarlo direttamente
+              sistemaStato = 5;
+              mostraMenuHumidifier();
             }
             else if (i == 2) {
               sistemaStato = 2;
@@ -619,6 +764,48 @@ void loop() {
             sistemaStato = 1;
             mostraMenuPrincipale();
           }
+        }
+      }
+
+      // ==========================================
+      // LOGICA STATO 5: SCHERMATA HUMIDIFIER (ON/OFF + TIMER)
+      // ==========================================
+      else if (sistemaStato == 5) {
+        // 1. Bottone ON
+        if (x_mappato >= btnHumOn.x && x_mappato <= (btnHumOn.x + btnHumOn.w) &&
+            y_mappato >= btnHumOn.y && y_mappato <= (btnHumOn.y + btnHumOn.h)) {
+          humidifierAttivo = true;
+          humidifierAccensioneMillis = millis();
+          inviaAlSlave(2, 1);
+          Serial.println("Humidifier ACCESO");
+          mostraMenuHumidifier();
+        }
+
+        // 2. Bottone OFF
+        else if (x_mappato >= btnHumOff.x && x_mappato <= (btnHumOff.x + btnHumOff.w) &&
+                 y_mappato >= btnHumOff.y && y_mappato <= (btnHumOff.y + btnHumOff.h)) {
+          humidifierAttivo = false;
+          inviaAlSlave(2, 0);
+          Serial.println("Humidifier SPENTO");
+          mostraMenuHumidifier();
+        }
+
+        // 3. Bottone TIMER (cicla tra i preset: INFINITO, 30s, 60s, 2min, 5min)
+        else if (x_mappato >= btnHumTimer.x && x_mappato <= (btnHumTimer.x + btnHumTimer.w) &&
+                 y_mappato >= btnHumTimer.y && y_mappato <= (btnHumTimer.y + btnHumTimer.h)) {
+          humidifierTimerIndex = (humidifierTimerIndex + 1) % 5;
+          humidifierTimerSec = humidifierPresets[humidifierTimerIndex];
+          // Se e' gia' acceso, il countdown riparte da zero con il nuovo timer scelto
+          if (humidifierAttivo) humidifierAccensioneMillis = millis();
+          Serial.printf("Timer humidifier impostato: %s\n", humidifierPresetLabel[humidifierTimerIndex]);
+          mostraMenuHumidifier();
+        }
+
+        // 4. Bottone BACK
+        else if (x_mappato >= btnHumBack.x && x_mappato <= (btnHumBack.x + btnHumBack.w) &&
+                 y_mappato >= btnHumBack.y && y_mappato <= (btnHumBack.y + btnHumBack.h)) {
+          sistemaStato = 1;
+          mostraMenuPrincipale();
         }
       }
 
