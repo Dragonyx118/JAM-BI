@@ -151,6 +151,8 @@ void mostraMenuPrincipale() {
   drawMiniLogo(miniLogoX, 10);
 
   tft.setTextDatum(MC_DATUM); 
+  tft.setTextFont(1);      // Font pixel GLCD, stesso stile del logo
+  tft.setTextSize(3);      // Ingrandito per abbinarsi alle dimensioni dei pulsanti
 
   for (int i = 0; i < 4; i++) {
     uint16_t colore = (i == 1 && humidifierAttivo) ? TFT_GREEN : TFT_WHITE;
@@ -161,8 +163,9 @@ void mostraMenuPrincipale() {
     int centroY = menuPulsanti[i].y + (menuPulsanti[i].h / 2) - 3; 
     
     tft.setTextColor(colore, TFT_BLACK);
-    tft.drawCentreString(menuPulsanti[i].etichetta, centroX, centroY, 4); 
+    tft.drawCentreString(menuPulsanti[i].etichetta, centroX, centroY, 1); 
   }
+  tft.setTextSize(1);      // Ripristino la scala di default
 }
 
 void mostraMenuMedia() {
@@ -177,8 +180,11 @@ void mostraMenuMedia() {
   
   char titolo[30];
   snprintf(titolo, sizeof(titolo), "MEDIA (%d/%d)", paginaCorrente, pagineTotali);
-  tft.drawCentreString(titolo, 160, 20, 4);
+  tft.setTextSize(3);              // Titolo grande in font pixel
+  tft.drawCentreString(titolo, 160, 20, 1);
   tft.drawFastHLine(20, 42, 280, TFT_GREEN);
+
+  tft.setTextSize(1);              // Testo piu' piccolo in font pixel per elenco e pulsanti
 
   // Disegna le 5 tracce della pagina
   int startY = 50;
@@ -198,7 +204,7 @@ void mostraMenuMedia() {
     
     tft.setTextDatum(TL_DATUM);
     tft.setTextColor(coloreTesto, TFT_BLACK);
-    tft.drawString(listaTracce[tracciaIndice], 30, currentY + (boxH / 2) - 6, 2);
+    tft.drawString(listaTracce[tracciaIndice], 30, currentY + (boxH / 2) - 6, 1);
   }
 
   tft.setTextDatum(MC_DATUM);
@@ -206,28 +212,30 @@ void mostraMenuMedia() {
   // Riga 1 Controlli: VOL -, STOP, VOL +
   tft.drawRect(btnVolGiu.x, btnVolGiu.y, btnVolGiu.w, btnVolGiu.h, TFT_YELLOW);
   tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-  tft.drawCentreString(btnVolGiu.etichetta, btnVolGiu.x + (btnVolGiu.w/2), btnVolGiu.y + (btnVolGiu.h/2) - 2, 2);
+  tft.drawCentreString(btnVolGiu.etichetta, btnVolGiu.x + (btnVolGiu.w/2), btnVolGiu.y + (btnVolGiu.h/2) - 2, 1);
 
   tft.drawRect(btnStop.x, btnStop.y, btnStop.w, btnStop.h, TFT_ORANGE);
   tft.setTextColor(TFT_ORANGE, TFT_BLACK);
-  tft.drawCentreString(btnStop.etichetta, btnStop.x + (btnStop.w/2), btnStop.y + (btnStop.h/2) - 2, 2);
+  tft.drawCentreString(btnStop.etichetta, btnStop.x + (btnStop.w/2), btnStop.y + (btnStop.h/2) - 2, 1);
 
   tft.drawRect(btnVolSu.x, btnVolSu.y, btnVolSu.w, btnVolSu.h, TFT_YELLOW);
   tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-  tft.drawCentreString(btnVolSu.etichetta, btnVolSu.x + (btnVolSu.w/2), btnVolSu.y + (btnVolSu.h/2) - 2, 2);
+  tft.drawCentreString(btnVolSu.etichetta, btnVolSu.x + (btnVolSu.w/2), btnVolSu.y + (btnVolSu.h/2) - 2, 1);
 
   // Riga 2 Navigazione: SU, GIU, BACK
   tft.drawRect(btnSu.x, btnSu.y, btnSu.w, btnSu.h, TFT_WHITE);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.drawCentreString(btnSu.etichetta, btnSu.x + (btnSu.w/2), btnSu.y + (btnSu.h/2) - 2, 2);
+  tft.drawCentreString(btnSu.etichetta, btnSu.x + (btnSu.w/2), btnSu.y + (btnSu.h/2) - 2, 1);
 
   tft.drawRect(btnGiu.x, btnGiu.y, btnGiu.w, btnGiu.h, TFT_WHITE);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.drawCentreString(btnGiu.etichetta, btnGiu.x + (btnGiu.w/2), btnGiu.y + (btnGiu.h/2) - 2, 2);
+  tft.drawCentreString(btnGiu.etichetta, btnGiu.x + (btnGiu.w/2), btnGiu.y + (btnGiu.h/2) - 2, 1);
 
   tft.drawRect(btnIndietroMedia.x, btnIndietroMedia.y, btnIndietroMedia.w, btnIndietroMedia.h, TFT_RED);
   tft.setTextColor(TFT_RED, TFT_BLACK);
-  tft.drawCentreString(btnIndietroMedia.etichetta, btnIndietroMedia.x + (btnIndietroMedia.w/2), btnIndietroMedia.y + (btnIndietroMedia.h/2) - 2, 2);
+  tft.drawCentreString(btnIndietroMedia.etichetta, btnIndietroMedia.x + (btnIndietroMedia.w/2), btnIndietroMedia.y + (btnIndietroMedia.h/2) - 2, 1);
+
+  tft.setTextSize(1);      // Ripristino la scala di default
 }
 
 void mostraMenuHelp() {
@@ -235,32 +243,43 @@ void mostraMenuHelp() {
   
   tft.setTextDatum(MC_DATUM);
   tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-  tft.drawCentreString("HELP & INFO", 160, 40, 4);
+  tft.setTextSize(3);              // Titolo grande in font pixel
+  tft.drawCentreString("HELP & INFO", 160, 40, 1);
   tft.drawFastHLine(20, 75, 280, TFT_YELLOW);
 
+  tft.setTextSize(2);              // Testo del corpo, piu' piccolo, sempre in font pixel
   tft.setTextDatum(TL_DATUM); 
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.drawString("GUIDA DI UTILIZZO:", 20, 100, 2);
+  tft.drawString("GUIDA DI UTILIZZO:", 20, 100, 1);
   
   tft.setTextColor(TFT_GREEN, TFT_BLACK);
-  tft.drawString("- HUMIDIFIER:", 20, 140, 2);
+  tft.drawString("- HUMIDIFIER:", 20, 140, 1);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.drawString("  Attiva/Disattiva il rele' Slave.", 20, 165, 2);
+  tft.drawString("  Attiva/Disattiva il rele' Slave.", 20, 165, 1);
   
   tft.setTextColor(TFT_GREEN, TFT_BLACK);
-  tft.drawString("- MEDIA:", 20, 205, 2);
+  tft.drawString("- MEDIA:", 20, 205, 1);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.drawString("  Scegli le tracce audio dalla SD.", 20, 230, 2);
+  tft.drawString("  Scegli le tracce audio dalla SD.", 20, 230, 1);
   
   tft.setTextColor(TFT_GREEN, TFT_BLACK);
-  tft.drawString("- JAMMER:", 20, 270, 2);
+  tft.drawString("- JAMMER:", 20, 270, 1);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.drawString("  Opzione futura di controllo.", 20, 295, 2);
+  tft.drawString("  Opzione futura di controllo.", 20, 295, 1);
 
+  // --- SCRITTA GIGANTE IN PIXEL ---
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextSize(7);               // Ingrandimento x7 = lettere enormi e blocchettose
+  tft.setTextColor(TFT_MAGENTA, TFT_BLACK);
+  tft.drawString("SUCA", 160, 350, 1);
+
+  tft.setTextSize(3);               // Torno alla dimensione grande per il pulsante
   tft.setTextDatum(MC_DATUM);
   tft.drawRect(pulsanteIndietroHelp.x, pulsanteIndietroHelp.y, pulsanteIndietroHelp.w, pulsanteIndietroHelp.h, TFT_RED);
   tft.setTextColor(TFT_RED, TFT_BLACK);
-  tft.drawCentreString(pulsanteIndietroHelp.etichetta, pulsanteIndietroHelp.x + (pulsanteIndietroHelp.w/2), pulsanteIndietroHelp.y + (pulsanteIndietroHelp.h/2) - 3, 4);
+  tft.drawCentreString(pulsanteIndietroHelp.etichetta, pulsanteIndietroHelp.x + (pulsanteIndietroHelp.w/2), pulsanteIndietroHelp.y + (pulsanteIndietroHelp.h/2) - 3, 1);
+
+  tft.setTextSize(1);                // Ripristino la scala di default per le altre schermate
 }
 
 // --- SETUP E LOOP ---
@@ -275,7 +294,9 @@ void setup() {
   drawAnimatedLogo();
   tft.setTextDatum(MC_DATUM);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.drawCentreString("Loading JAM-BI...", 160, 430, 2);
+  tft.setTextSize(2);      // Font pixel GLCD ingrandito, coerente col resto della UI
+  tft.drawCentreString("Loading JAM-BI...", 160, 430, 1);
+  tft.setTextSize(1);      // Ripristino la scala di default
   delay(1500);
 
   // --- OPTIMIZATION RANGE TRANSMISSION (TX POWER MAX) ---
