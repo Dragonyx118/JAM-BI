@@ -21,6 +21,9 @@ XPT2046_Touchscreen ts(TOUCH_CS_PIN);
 // Stati del sistema: 0=Boot, 1=Menu Principale, 2=Menu Media, 3=Menu Help
 int sistemaStato = 0; 
 bool humidifierAttivo = false; 
+int bananaPotenza = 0; // 0=OFF, 1=Potenza1, 2=Potenza2+, 3=Potenza Massima
+float faseOnda = 0.0;          // Fase corrente dell'onda (per l'animazione)
+unsigned long ultimoTremore = 0; // Timestamp ultimo aggiornamento tremolio
 
 // Struttura dati per i Comandi ESP-NOW
 typedef struct {
@@ -41,7 +44,7 @@ struct Pulsante {
 
 // Menu Principale (Grafica Originale)
 Pulsante menuPulsanti[4] = {
-  {20, 170, 280, 50, "JAMMER"},        
+  {20, 170, 280, 50, "Banana"},        
   {20, 240, 280, 50, "HUMIDIFIER"},
   {20, 310, 280, 50, "MEDIA"},
   {20, 380, 280, 50, "HELP"}
@@ -98,6 +101,19 @@ Pulsante btnIndietroMedia = {220, 380, 80, 40, "BACK"};
 
 // Pulsante universale per HELP
 Pulsante pulsanteIndietroHelp = {20, 400, 280, 50, "INDIETRO"};
+
+// --- ELEMENTI PAGINA BANANA (ONDA + CONTROLLO POTENZA) ---
+Pulsante rettangoloOnda = {20, 50, 280, 200, ""}; // Riquadro dell'onda (circa meta' schermo)
+
+// 4 pulsanti potenza in una riga sotto il riquadro onda
+Pulsante bananaBtn[4] = {
+  {20,  280, 64, 60, "OFF"},
+  {92,  280, 64, 60, "POT 1"},
+  {164, 280, 64, 60, "POT 2+"},
+  {236, 280, 64, 60, "MAX"}
+};
+
+Pulsante btnIndietroBanana = {20, 360, 280, 50, "INDIETRO"};
 
 // --- FUNZIONI DI COMUNICAZIONE ---
 void inviaAlSlave(uint8_t action, uint16_t value) {
@@ -282,6 +298,93 @@ void mostraMenuHelp() {
   tft.setTextSize(1);                // Ripristino la scala di default per le altre schermate
 }
 
+// --- PAGINA BANANA: ONDA OSCILLOSCOPIO + CONTROLLO POTENZA ---
+
+// Disegna solo l'onda dentro il riquadro (senza ridisegnare tutta la pagina)
+void disegnaOnda() {
+  int x = rettangoloOnda.x;
+  int y = rettangoloOnda.y;
+  int w = rettangoloOnda.w;
+  int h = rettangoloOnda.h;
+
+  // Pulisce l'interno del riquadro lasciando intatto il bordo
+  tft.fillRect(x + 2, y + 2, w - 4, h - 4, TFT_BLACK);
+
+  int centroY = y + (h / 2);
+
+  if (bananaPotenza == 0) {
+    // OFF: linea piatta al centro
+    tft.drawFastHLine(x + 4, centroY, w - 8, TFT_DARKGREY);
+    return;
+  }
+
+  // L'ampiezza cresce con la potenza: a MAX occupa quasi tutta la meta' del riquadro
+  float ampiezzaMax = (h / 2.0) - 8;
+  float ampiezza = ampiezzaMax * (bananaPotenza / 3.0);
+
+  // Anche la frequenza aumenta leggermente per un effetto piu' "vivo" alle potenze alte
+  float frequenza = 1.5 + (bananaPotenza * 0.5);
+
+  uint16_t colore;
+  if (bananaPotenza == 1) colore = TFT_YELLOW;
+  else if (bananaPotenza == 2) colore = TFT_ORANGE;
+  else colore = TFT_RED;
+
+  int prevX = x + 4;
+  int prevY = centroY;
+  for (int px = x + 4; px <= x + w - 4; px++) {
+    float t = (float)(px - x) / w;
+
+    // Onda base + tremolio: piccolo rumore casuale che varia ad ogni aggiornamento
+    float tremore = (random(-100, 101) / 100.0) * (ampiezzaMax * 0.06);
+    float valore = sin(t * frequenza * 2 * PI + faseOnda) * ampiezza + tremore;
+
+    int py = centroY + (int)valore;
+    tft.drawLine(prevX, prevY, px, py, colore);
+    prevX = px;
+    prevY = py;
+  }
+}
+
+// Disegna i 4 pulsanti di potenza, evidenziando in verde quello attivo
+void disegnaPulsantiBanana() {
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextSize(2);
+  for (int i = 0; i < 4; i++) {
+    uint16_t colore = (i == bananaPotenza) ? TFT_GREEN : TFT_WHITE;
+    tft.drawRect(bananaBtn[i].x, bananaBtn[i].y, bananaBtn[i].w, bananaBtn[i].h, colore);
+    tft.setTextColor(colore, TFT_BLACK);
+    tft.drawCentreString(bananaBtn[i].etichetta, bananaBtn[i].x + (bananaBtn[i].w / 2), bananaBtn[i].y + (bananaBtn[i].h / 2) - 4, 1);
+  }
+  tft.setTextSize(1);
+}
+
+// Schermata completa della pagina Banana
+void mostraMenuBanana() {
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextDatum(MC_DATUM);
+
+  tft.setTextColor(TFT_GREEN, TFT_BLACK);
+  tft.setTextSize(3);
+  tft.drawCentreString("BANANA", 160, 20, 1);
+  tft.drawFastHLine(20, 42, 280, TFT_GREEN);
+  tft.setTextSize(1);
+
+  // Riquadro contenitore dell'onda
+  tft.drawRect(rettangoloOnda.x, rettangoloOnda.y, rettangoloOnda.w, rettangoloOnda.h, TFT_WHITE);
+  disegnaOnda();
+
+  // Pulsanti potenza
+  disegnaPulsantiBanana();
+
+  // Pulsante BACK
+  tft.setTextSize(3);
+  tft.drawRect(btnIndietroBanana.x, btnIndietroBanana.y, btnIndietroBanana.w, btnIndietroBanana.h, TFT_RED);
+  tft.setTextColor(TFT_RED, TFT_BLACK);
+  tft.drawCentreString(btnIndietroBanana.etichetta, btnIndietroBanana.x + (btnIndietroBanana.w / 2), btnIndietroBanana.y + (btnIndietroBanana.h / 2) - 3, 1);
+  tft.setTextSize(1);
+}
+
 // --- SETUP E LOOP ---
 
 void setup() {
@@ -299,9 +402,9 @@ void setup() {
   tft.setTextSize(1);      // Ripristino la scala di default
   delay(1500);
 
-  // --- OPTIMIZATION RANGE TRANSMISSION (TX POWER MAX) ---
+  
   WiFi.mode(WIFI_STA);
-  WiFi.setTxPower(WIFI_POWER_19_5dBm); // Imposta la massima potenza del chip radio ESP32
+  WiFi.setTxPower(WIFI_POWER_19_5dBm); 
 
   if (esp_now_init() != ESP_OK) return;
 
@@ -321,6 +424,16 @@ void setup() {
 }
 
 void loop() {
+  // Animazione tremolio onda Banana: si aggiorna da sola quando la potenza e' attiva,
+  // indipendentemente dal touch, cosi' l'onda "vive" mentre e' accesa.
+  if (sistemaStato == 4 && bananaPotenza != 0) {
+    if (millis() - ultimoTremore > 90) {
+      faseOnda += 0.35;
+      disegnaOnda();
+      ultimoTremore = millis();
+    }
+  }
+
   if (ts.touched()) {
     TS_Point p = ts.getPoint();
 
@@ -354,7 +467,9 @@ void loop() {
               y_mappato >= menuPulsanti[i].y && y_mappato <= (menuPulsanti[i].y + menuPulsanti[i].h)) {
             
             if (i == 0) {
-              Serial.println("JAMMER premuto (No action)");
+              Serial.println("banana premuto");
+              sistemaStato = 4;
+              mostraMenuBanana();
             } 
             else if (i == 1) {
               humidifierAttivo = !humidifierAttivo;
@@ -472,6 +587,38 @@ void loop() {
             y_mappato >= pulsanteIndietroHelp.y && y_mappato <= (pulsanteIndietroHelp.y + pulsanteIndietroHelp.h)) {
           sistemaStato = 1;
           mostraMenuPrincipale();
+        }
+      }
+
+      // ==========================================
+      // LOGICA STATO 4: PAGINA BANANA (ONDA + POTENZA)
+      // ==========================================
+      else if (sistemaStato == 4) {
+        bool azionato = false;
+
+        // 1. Controlla i 4 pulsanti di potenza
+        for (int i = 0; i < 4; i++) {
+          if (x_mappato >= bananaBtn[i].x && x_mappato <= (bananaBtn[i].x + bananaBtn[i].w) &&
+              y_mappato >= bananaBtn[i].y && y_mappato <= (bananaBtn[i].y + bananaBtn[i].h)) {
+            bananaPotenza = i; // 0=OFF, 1=POT1, 2=POT2+, 3=MAX
+            inviaAlSlave(5, bananaPotenza); // Action 5: Potenza Banana
+            Serial.printf("Banana potenza impostata: %d\n", bananaPotenza);
+
+            disegnaPulsantiBanana(); // Aggiorna evidenziazione pulsante attivo
+            disegnaOnda();           // Aggiorna l'onda in base alla nuova potenza
+
+            azionato = true;
+            break;
+          }
+        }
+
+        // 2. Controlla BACK
+        if (!azionato) {
+          if (x_mappato >= btnIndietroBanana.x && x_mappato <= (btnIndietroBanana.x + btnIndietroBanana.w) &&
+              y_mappato >= btnIndietroBanana.y && y_mappato <= (btnIndietroBanana.y + btnIndietroBanana.h)) {
+            sistemaStato = 1;
+            mostraMenuPrincipale();
+          }
         }
       }
 
