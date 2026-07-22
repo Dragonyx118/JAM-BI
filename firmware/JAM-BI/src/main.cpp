@@ -208,58 +208,100 @@ void mostraMenuPrincipale() {
 // SCHERMATA HUMIDIFIER: icona pixel-art + ON/OFF + TIMER
 // ==========================================================
 
-// Disegna l'icona statica del diffusore (base nera + tubo bianco diagonale, ispirata alla foto)
-// Disegna l'icona del diffusore con il trasduttore nero in cima (come da foto)
+// ---- Coordinate dell'icona (facili da ritoccare a mano se sul display reale
+//      qualcosa risultasse leggermente storto o sovrapposto) ----
+#define HUM_BASE_X   50
+#define HUM_BASE_Y   208
+#define HUM_BASE_W   220
+#define HUM_BASE_H   16
+
+#define HUM_PCB_X    122
+#define HUM_PCB_Y    182
+#define HUM_PCB_W    72
+#define HUM_PCB_H    30
+
+#define HUM_BODY_X   140
+#define HUM_BODY_Y   118
+#define HUM_BODY_W   50
+#define HUM_BODY_H   45
+
+#define HUM_ROD_STARTX 178
+#define HUM_ROD_STARTY 130
+#define HUM_ROD_STEPS  8
+#define HUM_ROD_DX     -7.2
+#define HUM_ROD_DY     -8.7
+#define HUM_ROD_SIZE   15
+
+#define HUM_CAP_R      15
+
+// Disegna l'icona del diffusore ispirata alla foto: base in legno, schedina con
+// filo rosso, corpo nero, bastoncino bianco a gradini e cappuccio nero del
+// trasduttore ben visibile in cima.
 void disegnaIconaUmidificatore() {
   // Base scura (mobile/legno) su cui poggia il diffusore
-  tft.fillRect(60, 195, 200, 18, tft.color565(35, 35, 35));
+  tft.fillRect(HUM_BASE_X, HUM_BASE_Y, HUM_BASE_W, HUM_BASE_H, tft.color565(35, 35, 35));
+
+  // Schedina elettronica (come nella foto), con due fori ramati e un connettore bianco
+  tft.fillRoundRect(HUM_PCB_X, HUM_PCB_Y, HUM_PCB_W, HUM_PCB_H, 4, tft.color565(15, 60, 15));
+  tft.fillCircle(HUM_PCB_X + 14, HUM_PCB_Y + 22, 3, tft.color565(190, 150, 70));
+  tft.fillCircle(HUM_PCB_X + 40, HUM_PCB_Y + 22, 3, tft.color565(190, 150, 70));
+  tft.fillRect(HUM_PCB_X + 46, HUM_PCB_Y + 8, 20, 12, TFT_WHITE);
+
+  // Filo rosso che sale dalla schedina fino al corpo nero del diffusore
+  tft.drawLine(HUM_PCB_X + 20, HUM_PCB_Y, HUM_BODY_X + 12, HUM_BODY_Y + HUM_BODY_H, TFT_RED);
+  tft.drawLine(HUM_PCB_X + 22, HUM_PCB_Y, HUM_BODY_X + 14, HUM_BODY_Y + HUM_BODY_H, TFT_RED);
 
   // Corpo nero arrotondato del diffusore
-  tft.fillCircle(180, 205, 24, TFT_BLACK);
-  tft.fillRect(160, 175, 40, 35, TFT_BLACK);
+  tft.fillRoundRect(HUM_BODY_X, HUM_BODY_Y, HUM_BODY_W, HUM_BODY_H, 10, TFT_BLACK);
 
-  // Piccolo LED rosso di stato sul corpo
-  tft.fillCircle(165, 192, 3, TFT_RED);
-
-  // Tubo/Stick bianco diagonale "a gradini" stile pixel-art
-  int steps = 8;
-  int startX = 195, startY = 178;
-  for (int i = 0; i < steps; i++) {
-    int px = startX - i * 5;
-    int py = startY - i * 11;
-    tft.fillRect(px, py, 15, 15, TFT_WHITE);
+  // Bastoncino bianco diagonale "a gradini" stile pixel-art
+  int lastPx = 0, lastPy = 0;
+  for (int i = 0; i < HUM_ROD_STEPS; i++) {
+    int px = (int)(HUM_ROD_STARTX + HUM_ROD_DX * i);
+    int py = (int)(HUM_ROD_STARTY + HUM_ROD_DY * i);
+    tft.fillRect(px, py, HUM_ROD_SIZE, HUM_ROD_SIZE, TFT_WHITE);
+    lastPx = px;
+    lastPy = py;
   }
 
-  // --- NUOVO: Il "cosino nero" in cima (il trasduttore piezoelettrico della foto) ---
-  // Posizionato esattamente alla fine del bastoncino bianco
-  int capX = startX - (steps - 1) * 5 + 7; 
-  int capY = startY - (steps - 1) * 11 + 7;
-  
-  tft.fillCircle(capX, capY, 12, tft.color565(50, 50, 50)); // Bordo grigio scuro
-  tft.fillCircle(capX, capY, 8, TFT_BLACK);                // Centro nero del trasduttore
+  // --- Il "cosino nero" in cima (il trasduttore piezoelettrico della foto) ---
+  // Posizionato esattamente alla fine del bastoncino bianco, reso piu' grande
+  // e definito rispetto alla versione precedente cosi' che si veda bene.
+  int capX = lastPx + (HUM_ROD_SIZE / 2);
+  int capY = lastPy + (HUM_ROD_SIZE / 2);
+
+  tft.fillCircle(capX, capY, HUM_CAP_R, tft.color565(55, 55, 55));  // bordo grigio scuro
+  tft.fillCircle(capX, capY, HUM_CAP_R - 5, TFT_BLACK);             // centro nero
+  tft.drawCircle(capX, capY, HUM_CAP_R, tft.color565(95, 95, 95));  // rilievo esterno
+  tft.drawCircle(capX, capY, HUM_CAP_R - 5, tft.color565(80, 80, 80)); // rilievo interno
 }
 
-// Aggiorna l'animazione delle particelle facendole uscire dal trasduttore nero
+// Aggiorna l'animazione delle particelle facendole uscire dal cappuccio nero,
+// senza mai intaccare l'icona statica sottostante (zona di pulizia ristretta
+// alla sola area sopra il cappuccio).
 void aggiornaParticelleUmidificatore() {
-  // Pulisce l'area di volo del vapore (si ferma appena sopra il trasduttore a Y=84 per non cancellarlo)
-  tft.fillRect(90, 20, 160, 64, TFT_BLACK);
+  // Punto di nascita del vapore: appena sopra il cappuccio nero
+  const int nascitaX = (int)(HUM_ROD_STARTX + HUM_ROD_DX * (HUM_ROD_STEPS - 1)) + (HUM_ROD_SIZE / 2);
+  const int nascitaY = (int)(HUM_ROD_STARTY + HUM_ROD_DY * (HUM_ROD_STEPS - 1)) + (HUM_ROD_SIZE / 2) - HUM_CAP_R - 4;
+  const int fadeY = nascitaY - 14; // altezza a cui le particelle svaniscono
+
+  // Pulisce solo la fascia sopra il cappuccio (non tocca mai il resto dell'icona)
+  tft.fillRect(nascitaX - 45, fadeY - 4, 90, (nascitaY - fadeY) + 12, TFT_BLACK);
 
   if (humidifierAttivo) {
     for (int i = 0; i < NUM_PARTICELLE; i++) {
       if (!particelle[i].attiva) {
-        // Fai nascere la particella esattamente sopra il cerchietto nero (X=167, Y=84)
         if (random(0, 100) < 25) {
-          particelle[i].x = 167 + random(-6, 7);
-          particelle[i].y = 84; 
-          particelle[i].velocita = 0.8f + (random(0, 60) / 100.0f);
+          particelle[i].x = nascitaX + random(-6, 7);
+          particelle[i].y = nascitaY;
+          particelle[i].velocita = 0.6f + (random(0, 50) / 100.0f);
           particelle[i].attiva = true;
         }
       } else {
         particelle[i].y -= particelle[i].velocita;
         particelle[i].x += (random(-10, 11) / 12.0f); // Leggera oscillazione laterale
-        
-        // Svanisce quando sale troppo in alto
-        if (particelle[i].y < 22) {
+
+        if (particelle[i].y < fadeY) {
           particelle[i].attiva = false;
         } else {
           uint16_t coloreVapore = tft.color565(200, 230, 255);
@@ -802,7 +844,7 @@ void loop() {
           mostraMenuHumidifier();
         }
 
-        // 3. Bottone TIMER (cicla tra i preset: INFINITO, 30s, 60s, 2min, 5min)
+        // 3. Bottone TIMER (cicla tra i preset)
         else if (x_mappato >= btnHumTimer.x && x_mappato <= (btnHumTimer.x + btnHumTimer.w) &&
                  y_mappato >= btnHumTimer.y && y_mappato <= (btnHumTimer.y + btnHumTimer.h)) {
           humidifierTimerIndex = (humidifierTimerIndex + 1) % 5;
