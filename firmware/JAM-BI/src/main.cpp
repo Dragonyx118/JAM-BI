@@ -35,12 +35,6 @@ unsigned long humidifierAccensioneMillis = 0; // Timestamp di accensione (per co
 unsigned long ultimaParticella = 0;            // Timestamp ultimo aggiornamento animazione particelle
 
 #define NUM_PARTICELLE 10
-struct Particella {
-  float x, y;
-  float velocita;
-  bool attiva;
-};
-Particella particelle[NUM_PARTICELLE];
 
 // Struttura dati per i Comandi ESP-NOW
 typedef struct {
@@ -237,75 +231,85 @@ void mostraMenuPrincipale() {
 // Disegna l'icona del diffusore ispirata alla foto: base in legno, schedina con
 // filo rosso, corpo nero, bastoncino bianco a gradini e cappuccio nero del
 // trasduttore ben visibile in cima.
+// --- Nuove coordinate (sostituiscono i vecchi HUM_BODY_*, HUM_ROD_*, HUM_CAP_R) ---
+#define HUM_CAP_X      160   // centro X di cappuccio+bastoncino
+#define HUM_CAP_TOP_Y  85   // Y superiore del cappuccio nero
+#define HUM_CAP_W      60
+#define HUM_CAP_H      30
+#define HUM_ROD_W      14
+#define HUM_ROD_TOP_Y  (HUM_CAP_TOP_Y + HUM_CAP_H - 6)
+#define HUM_ROD_H      70
+#define HUM_BASE_W     200
+#define HUM_BASE_H     16
+#define HUM_BASE_X     (HUM_CAP_X - HUM_BASE_W/2)
+#define HUM_BASE_Y     (HUM_ROD_TOP_Y + HUM_ROD_H)
+
+#define HUM_PCB_X      205
+#define HUM_PCB_Y      150
+#define HUM_PCB_W      85
+#define HUM_PCB_H      60
+
 void disegnaIconaUmidificatore() {
-  // Base scura (mobile/legno) su cui poggia il diffusore
+  int rodX = HUM_CAP_X - HUM_ROD_W / 2;
+
+  // Base/vaschetta scura
   tft.fillRect(HUM_BASE_X, HUM_BASE_Y, HUM_BASE_W, HUM_BASE_H, tft.color565(35, 35, 35));
 
-  // Schedina elettronica (come nella foto), con due fori ramati e un connettore bianco
-  tft.fillRoundRect(HUM_PCB_X, HUM_PCB_Y, HUM_PCB_W, HUM_PCB_H, 4, tft.color565(15, 60, 15));
-  tft.fillCircle(HUM_PCB_X + 14, HUM_PCB_Y + 22, 3, tft.color565(190, 150, 70));
-  tft.fillCircle(HUM_PCB_X + 40, HUM_PCB_Y + 22, 3, tft.color565(190, 150, 70));
-  tft.fillRect(HUM_PCB_X + 46, HUM_PCB_Y + 8, 20, 12, TFT_WHITE);
+  // Bastoncino bianco DRITTO (verticale, come nella foto)
+  tft.fillRoundRect(rodX, HUM_ROD_TOP_Y, HUM_ROD_W, HUM_ROD_H, 4, TFT_WHITE);
 
-  // Filo rosso che sale dalla schedina fino al corpo nero del diffusore
-  tft.drawLine(HUM_PCB_X + 20, HUM_PCB_Y, HUM_BODY_X + 12, HUM_BODY_Y + HUM_BODY_H, TFT_RED);
-  tft.drawLine(HUM_PCB_X + 22, HUM_PCB_Y, HUM_BODY_X + 14, HUM_BODY_Y + HUM_BODY_H, TFT_RED);
+  // Cappuccio nero con le due alette che stringono il bastoncino
+  int capX = HUM_CAP_X - HUM_CAP_W / 2;
+  tft.fillRoundRect(capX, HUM_CAP_TOP_Y, HUM_CAP_W, HUM_CAP_H, 10, TFT_BLACK);
+  // Fessura ovale centrale visibile sul cappuccio nella foto
+  tft.fillRoundRect(HUM_CAP_X - 4, HUM_CAP_TOP_Y + 6, 8, HUM_CAP_H - 14, 4, tft.color565(20, 20, 20));
+  tft.drawRoundRect(HUM_CAP_X - 4, HUM_CAP_TOP_Y + 6, 8, HUM_CAP_H - 14, 4, tft.color565(70, 70, 70));
 
-  // Corpo nero arrotondato del diffusore
-  tft.fillRoundRect(HUM_BODY_X, HUM_BODY_Y, HUM_BODY_W, HUM_BODY_H, 10, TFT_BLACK);
-
-  // Bastoncino bianco diagonale "a gradini" stile pixel-art
-  int lastPx = 0, lastPy = 0;
-  for (int i = 0; i < HUM_ROD_STEPS; i++) {
-    int px = (int)(HUM_ROD_STARTX + HUM_ROD_DX * i);
-    int py = (int)(HUM_ROD_STARTY + HUM_ROD_DY * i);
-    tft.fillRect(px, py, HUM_ROD_SIZE, HUM_ROD_SIZE, TFT_WHITE);
-    lastPx = px;
-    lastPy = py;
-  }
-
-  // --- Il "cosino nero" in cima (il trasduttore piezoelettrico della foto) ---
-  // Posizionato esattamente alla fine del bastoncino bianco, reso piu' grande
-  // e definito rispetto alla versione precedente cosi' che si veda bene.
-  int capX = lastPx + (HUM_ROD_SIZE / 2);
-  int capY = lastPy + (HUM_ROD_SIZE / 2);
-
-  tft.fillCircle(capX, capY, HUM_CAP_R, tft.color565(55, 55, 55));  // bordo grigio scuro
-  tft.fillCircle(capX, capY, HUM_CAP_R - 5, TFT_BLACK);             // centro nero
-  tft.drawCircle(capX, capY, HUM_CAP_R, tft.color565(95, 95, 95));  // rilievo esterno
-  tft.drawCircle(capX, capY, HUM_CAP_R - 5, tft.color565(80, 80, 80)); // rilievo interno
+  
 }
 
 // Aggiorna l'animazione delle particelle facendole uscire dal cappuccio nero,
 // senza mai intaccare l'icona statica sottostante (zona di pulizia ristretta
 // alla sola area sopra il cappuccio).
+struct Particella {
+  float x, y;
+  float velocita;
+  float driftBase;   // quanto questa particella tende a "sbandare" lateralmente salendo
+  bool attiva;
+};
+Particella particelle[NUM_PARTICELLE];
 void aggiornaParticelleUmidificatore() {
-  // Punto di nascita del vapore: appena sopra il cappuccio nero
-  const int nascitaX = (int)(HUM_ROD_STARTX + HUM_ROD_DX * (HUM_ROD_STEPS - 1)) + (HUM_ROD_SIZE / 2);
-  const int nascitaY = (int)(HUM_ROD_STARTY + HUM_ROD_DY * (HUM_ROD_STEPS - 1)) + (HUM_ROD_SIZE / 2) - HUM_CAP_R - 4;
-  const int fadeY = nascitaY - 14; // altezza a cui le particelle svaniscono
+  const int nascitaX = HUM_CAP_X;
+  const int nascitaY = HUM_CAP_TOP_Y - 4;
+  const int fadeY = nascitaY - 20;   // pennacchio più lungo = più realistico
 
-  // Pulisce solo la fascia sopra il cappuccio (non tocca mai il resto dell'icona)
-  tft.fillRect(nascitaX - 45, fadeY - 4, 90, (nascitaY - fadeY) + 12, TFT_BLACK);
+  tft.fillRect(nascitaX - 45, fadeY - 10, 90, (nascitaY - fadeY) + 20, TFT_BLACK);
 
   if (humidifierAttivo) {
     for (int i = 0; i < NUM_PARTICELLE; i++) {
       if (!particelle[i].attiva) {
         if (random(0, 100) < 25) {
-          particelle[i].x = nascitaX + random(-6, 7);
+          particelle[i].x = nascitaX + random(-4, 5);
           particelle[i].y = nascitaY;
-          particelle[i].velocita = 0.6f + (random(0, 50) / 100.0f);
+          particelle[i].velocita = 0.5f + (random(0, 60) / 100.0f);
+          particelle[i].driftBase = (random(-100, 101) / 100.0f);
           particelle[i].attiva = true;
         }
       } else {
         particelle[i].y -= particelle[i].velocita;
-        particelle[i].x += (random(-10, 11) / 12.0f); // Leggera oscillazione laterale
 
-        if (particelle[i].y < fadeY) {
+        float altezzaPercorsa = nascitaY - particelle[i].y;
+        // dispersione a cono: più sale, più si allarga
+        particelle[i].x += particelle[i].driftBase * 0.05f + (random(-8, 9) / 20.0f);
+
+        float frazione = altezzaPercorsa / (nascitaY - fadeY);
+        if (frazione >= 1.0f) {
           particelle[i].attiva = false;
         } else {
-          uint16_t coloreVapore = tft.color565(200, 230, 255);
-          tft.fillCircle((int)particelle[i].x, (int)particelle[i].y, 2, coloreVapore);
+          float opacita = sin(frazione * PI);           // nasce, culmina, svanisce
+          int r = 200 * opacita, g = 230 * opacita, b = 255 * opacita;
+          int raggio = 1 + (int)(2 * sin(frazione * PI)); // cresce e poi si assottiglia
+          tft.fillCircle((int)particelle[i].x, (int)particelle[i].y, raggio, tft.color565(r, g, b));
         }
       }
     }
