@@ -5,6 +5,16 @@
 #include <esp_now.h>
 #include <WiFi.h>
 #include "logo_data.h"
+#include "RF24.h"
+#include <ezButton.h>
+#include "esp_bt.h"
+#include "esp_wifi.h"
+
+SPIClass *sp = nullptr;
+RF24 radio(21, 5, 16000000); // CE = 21 CSN = 5
+byte i = 45;
+unsigned int flag = 0;
+ezButton toggleSwitch(33);
 
 uint8_t slaveMac[] = {0x8C, 0x94, 0xDF, 0x8B, 0x51, 0xA4};
 
@@ -128,6 +138,52 @@ Pulsante bananaBtn[4] = {
 };
 
 Pulsante btnIndietroBanana = {20, 360, 280, 50, "INDIETRO"};
+
+
+void initSP() {
+  sp = new SPIClass(VSPI);
+  sp->begin(18, 19, 23, -1);
+  if (radio.begin(sp)) {
+    delay(1000);
+    Serial.println("Sp Started !!!");
+    radio.setAutoAck(false);
+    radio.stopListening();
+    radio.setRetries(0, 0);
+    radio.setPayloadSize(5);   ////SET VALUE ON RF24.CPP
+    radio.setAddressWidth(3);  ////SET VALUE ON RF24.CPP
+    radio.setPALevel(RF24_PA_MAX, true);
+    radio.setDataRate(RF24_2MBPS);
+    radio.setCRCLength(RF24_CRC_DISABLED);
+    radio.printPrettyDetails();
+    radio.startConstCarrier(RF24_PA_MAX, i);  ////EDITED VALUES ON LIBRARY ....SET 5 BYTES PAYLOAD SIZE//REDUCE RF24_MAX TO RF24_HIGH OR LOW IF RF NOT STABLE
+  } else {
+    Serial.println("SP couldn't start !!!");
+  }
+}
+
+void two() {
+  ///CHANNEL WITH 2 SPACING HOPPING
+  if (flag == 0) {
+    i += 2;
+  } else {
+    i -= 2;
+  }
+
+  if ((i > 79) && (flag == 0)) {
+    flag = 1;
+  } else if ((i < 2) && (flag == 1)) {
+    flag = 0;
+  }
+
+  radio.setChannel(i);
+  // Serial.println(i);
+}
+
+void one() {
+  for (int i = 0; i < 15; i++) {
+    radio.setChannel(i);
+  }
+}
 
 // --- FUNZIONI DI COMUNICAZIONE ---
 void inviaAlSlave(uint8_t action, uint16_t value) {
@@ -605,6 +661,9 @@ void setup() {
 
   sistemaStato = 1;
   mostraMenuPrincipale();
+
+  
+
 }
 
 void loop() {

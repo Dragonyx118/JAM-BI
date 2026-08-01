@@ -39,8 +39,8 @@ void initSP() {
     Serial.println("SP couldn't start !!!");
   }
 }
-void two() {
 
+void two() {
   ///CHANNEL WITH 2 SPACING HOPPING
   if (flag == 0) {
     i += 2;
