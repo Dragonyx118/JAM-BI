@@ -10,13 +10,14 @@
 #include <ezButton.h>
 #include "esp_bt.h"
 #include "esp_wifi.h"
-#include "jam_code.cpp"
 
-SPIClass *sp = nullptr;
-RF24 radio(21, 5, 16000000); // CE = 21 CSN = 5
-byte i = 45;
-unsigned int flag = 0;
-ezButton toggleSwitch(33);
+// 1. Global declarations
+RF24 radio(22, 21); // CE, CSN (ensure these pins are free)
+uint8_t i = 45;     // Channel for jamming
+
+void initAntennaAndJamming();
+void startJamming();
+void stopJamming();
 
 uint8_t slaveMac[] = {0x8C, 0x94, 0xDF, 0x8B, 0x51, 0xA4};
 
@@ -142,50 +143,6 @@ Pulsante bananaBtn[2] = {
 };
 
 Pulsante btnIndietroBanana = {20, 360, 280, 50, "INDIETRO"};
-void initSP() {
-  sp = new SPIClass(VSPI);
-  sp->begin(18, 19, 23, -1);
-  if (radio.begin(sp)) {
-    delay(1000);
-    Serial.println("Sp Started !!!");
-    radio.setAutoAck(false);
-    radio.stopListening();
-    radio.setRetries(0, 0);
-    radio.setPayloadSize(5);   ////SET VALUE ON RF24.CPP
-    radio.setAddressWidth(3);  ////SET VALUE ON RF24.CPP
-    radio.setPALevel(RF24_PA_MAX, true);
-    radio.setDataRate(RF24_2MBPS);
-    radio.setCRCLength(RF24_CRC_DISABLED);
-    radio.printPrettyDetails();
-    radio.startConstCarrier(RF24_PA_MAX, i);  ////EDITED VALUES ON LIBRARY ....SET 5 BYTES PAYLOAD SIZE//REDUCE RF24_MAX TO RF24_HIGH OR LOW IF RF NOT STABLE
-  } else {
-    Serial.println("SP couldn't start !!!");
-  }
-}
-
-void two() {
-  ///CHANNEL WITH 2 SPACING HOPPING
-  if (flag == 0) {
-    i += 2;
-  } else {
-    i -= 2;
-  }
-
-  if ((i > 79) && (flag == 0)) {
-    flag = 1;
-  } else if ((i < 2) && (flag == 1)) {
-    flag = 0;
-  }
-
-  radio.setChannel(i);
-  // Serial.println(i);
-}
-
-void one() {
-  for (int i = 0; i < 15; i++) {
-    radio.setChannel(i);
-  }
-}
 
 // --- FUNZIONI DI COMUNICAZIONE ---
 void inviaAlSlave(uint8_t action, uint16_t value) {
@@ -663,20 +620,10 @@ void setup() {
   mostraMenuPrincipale();
 
   //inizializzazione antenna
-  pinMode(33, INPUT_PULLUP);  // BUILD-IN RESISTOR
-  esp_bt_controller_deinit();
-  esp_wifi_stop();
-  esp_wifi_deinit();
-  Serial.begin(115200);
-  delay(1000);
-  Serial.println("Setup started...");
-  toggleSwitch.setDebounceTime(50);
-  initSP();
+  initAntennaAndJamming();
 }
 
 void loop() {
-
-  toggleSwitch.loop();
   // Spegnimento automatico dell'humidifier se il timer e' scaduto (attivo indipendentemente
   // dalla schermata in cui ci si trova, per sicurezza).
   if (humidifierAttivo && humidifierTimerSec > 0) {
@@ -888,22 +835,10 @@ void loop() {
             // L'antenna nRF24 parte SOLO ora, se e' stato premuto ON
             // BANANA attivo
             if (bananaAttivo) {
-              
-
-              if (toggleSwitch.isPressed())
-                Serial.println("one");
-              if (toggleSwitch.isReleased())
-                Serial.println("two");
-
-              int state = toggleSwitch.getState();
-
-
-              if (state == HIGH)
-                two();
-
-              else {
-                one();
-              }
+              startJamming();
+            }
+            else{
+              stopJamming();
             }
 
             azionato = true;
@@ -966,4 +901,38 @@ void loop() {
       delay(180); // Ritardo anti-rimbalzo ottimizzato
     }
   }
+}
+
+// 4. Implementation of functions
+void initAntennaAndJamming() {
+  // Initialize RF24
+  if (radio.begin()) {
+    Serial.println("Modulo RF24 trovato!");
+  } 
+  if (!radio.begin()) {
+  Serial.println("RF24 module failed to initialize!");
+  }
+
+  delay(1000);
+
+  // Configure RF24 for jamming
+  radio.setAutoAck(false);
+  radio.stopListening();
+  radio.setRetries(0, 0);
+  radio.setPayloadSize(5);
+  radio.setAddressWidth(3);
+  radio.setPALevel(RF24_PA_MAX, true);
+  radio.setDataRate(RF24_2MBPS);
+  radio.setCRCLength(RF24_CRC_DISABLED);
+  Serial.println("Antenna configurata.");
+}
+
+void startJamming() {
+  radio.startConstCarrier(RF24_PA_MAX, i);
+  Serial.println("Portante continua avviata...");
+}
+
+void stopJamming() {
+  radio.stopConstCarrier();
+  Serial.println("Portante continua fermata.");
 }
