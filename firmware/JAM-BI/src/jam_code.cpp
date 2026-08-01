@@ -1,103 +1,52 @@
+#include <SPI.h>
 #include "RF24.h"
-#include <ezButton.h>
-#include "esp_bt.h"
-#include "esp_wifi.h"
 
-SPIClass *sp = nullptr;
+// 1. Dichiarazione GLOBALE: ora 'radio' è visibile in TUTTO il codice
+RF24 radio(22, 21); // Pin CE, CSN
 
+// 2. Dichiarazione del canale (i)
+uint8_t i = 45; // Numero del canale radio (0-125)
 
-RF24 radio(22, 21, 16000000); 
-
-byte i = 45;
-
-unsigned int flag = 0;
-
-
-ezButton toggleSwitch(33);
-
-
-void initSP() {
-  sp = new SPIClass(VSPI);
-  sp->begin();
-  if (radio.begin(sp)) {
-    delay(1000);
-    Serial.println("Sp Started !!!");
-    radio.setAutoAck(false);
-    radio.stopListening();
-    radio.setRetries(0, 0);
-    radio.setPayloadSize(5);   ////SET VALUE ON RF24.CPP
-    radio.setAddressWidth(3);  ////SET VALUE ON RF24.CPP
-    radio.setPALevel(RF24_PA_MAX, true);
-    radio.setDataRate(RF24_2MBPS);
-    radio.setCRCLength(RF24_CRC_DISABLED);
-    radio.printPrettyDetails();
-    radio.startConstCarrier(RF24_PA_MAX, i);  ////EDITED VALUES ON LIBRARY ....SET 5 BYTES PAYLOAD SIZE//REDUCE RF24_MAX TO RF24_HIGH OR LOW IF RF NOT STABLE
-
-
-
+void initAntennaAndJamming() {
+  // Inizializza il modulo RF24
+  if (radio.begin()) {
+    Serial.println("Modulo RF24 trovato!");
   } else {
-    Serial.println("SP couldn't start !!!");
+    Serial.println("ERRORE: Modulo RF24 non risponde.");
   }
-}
-
-void two() {
-  ///CHANNEL WITH 2 SPACING HOPPING
-  if (flag == 0) {
-    i += 2;
-  } else {
-    i -= 2;
-  }
-
-  if ((i > 79) && (flag == 0)) {
-    flag = 1;
-  } else if ((i < 2) && (flag == 1)) {
-    flag = 0;
-  }
-
-  radio.setChannel(i);
-  // Serial.println(i);
-}
-
-void one() {
-  for (int i = 0; i < 15; i++) {
-    radio.setChannel(i);
-  }
-}
-
-// radio.setChannel(random(79));
-
-
-
-
-void setup(void) {
-  pinMode(33, INPUT_PULLUP);  // BUILD-IN RESISTOR
-  esp_bt_controller_deinit();
-  esp_wifi_stop();
-  esp_wifi_deinit();
-  Serial.begin(115200);
+  
   delay(1000);
-  Serial.println("Setup started...");
-  toggleSwitch.setDebounceTime(50);
-  initSP();
+
+  // Configurazione dei parametri RF24
+  radio.setAutoAck(false);
+  radio.stopListening();
+  radio.setRetries(0, 0);
+  radio.setPayloadSize(5);
+  radio.setAddressWidth(3);
+  radio.setPALevel(RF24_PA_MAX, true);
+  radio.setDataRate(RF24_2MBPS);
+  radio.setCRCLength(RF24_CRC_DISABLED);
+
+  Serial.println("Antenna configurata.");
 }
 
+void startJamming() {
+  // Ora 'radio' e 'i' sono visibili correttamente
+  radio.startConstCarrier(RF24_PA_MAX, i); 
+  Serial.println("Portante continua avviata...");
+}
 
-void loop(void) {
+void stopJamming() {
+  // Funzione per fermare la trasmissione continua
+  radio.stopConstCarrier(); 
+  Serial.println("Portante continua fermata.");
+}
 
-  toggleSwitch.loop();  // MUST call the loop() function first
+void setup() {
+  Serial.begin(115200);
+  initAntennaAndJamming();
+}
 
-  if (toggleSwitch.isPressed())
-    Serial.println("one");
-  if (toggleSwitch.isReleased())
-    Serial.println("two");
-
-  int state = toggleSwitch.getState();
-
-
-  if (state == HIGH)
-    two();
-
-  else {
-    one();
-  }
+void loop() {
+  // Logica di test
 }

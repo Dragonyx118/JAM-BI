@@ -10,6 +10,7 @@
 #include <ezButton.h>
 #include "esp_bt.h"
 #include "esp_wifi.h"
+#include "jam_code.cpp"
 
 SPIClass *sp = nullptr;
 RF24 radio(21, 5, 16000000); // CE = 21 CSN = 5
@@ -674,6 +675,8 @@ void setup() {
 }
 
 void loop() {
+
+  toggleSwitch.loop();
   // Spegnimento automatico dell'humidifier se il timer e' scaduto (attivo indipendentemente
   // dalla schermata in cui ci si trova, per sicurezza).
   if (humidifierAttivo && humidifierTimerSec > 0) {
@@ -885,7 +888,7 @@ void loop() {
             // L'antenna nRF24 parte SOLO ora, se e' stato premuto ON
             // BANANA attivo
             if (bananaAttivo) {
-              toggleSwitch.loop();  // MUST call the loop() function first
+              
 
               if (toggleSwitch.isPressed())
                 Serial.println("one");
