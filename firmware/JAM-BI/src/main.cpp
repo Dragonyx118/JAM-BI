@@ -695,6 +695,15 @@ void setup() {
 
   sistemaStato = 1;
   mostraMenuPrincipale();
+  pinMode(33, INPUT_PULLUP);  // BUILD-IN RESISTOR
+  esp_bt_controller_deinit();
+  esp_wifi_stop();
+  esp_wifi_deinit();
+  Serial.begin(115200);
+  delay(1000);
+  Serial.println("Setup started...");
+  toggleSwitch.setDebounceTime(50);
+  initSP();
 }
 
 void loop() {
@@ -912,10 +921,24 @@ void loop() {
             disegnaOnda();           // Aggiorna l'onda in base al nuovo stato
 
             // L'antenna nRF24 parte SOLO ora, se e' stato premuto ON
+            // BANANA attivo
             if (bananaAttivo && rfPronto) {
-              rfContatore = 0;
-              rfUltimoInvio = millis();
-              inviaTestRF24(); // primo ping immediato
+              toggleSwitch.loop();  // MUST call the loop() function first
+
+              if (toggleSwitch.isPressed())
+                Serial.println("one");
+              if (toggleSwitch.isReleased())
+                Serial.println("two");
+
+              int state = toggleSwitch.getState();
+
+
+              if (state == HIGH)
+                two();
+
+              else {
+                one();
+              }
             }
 
             azionato = true;
