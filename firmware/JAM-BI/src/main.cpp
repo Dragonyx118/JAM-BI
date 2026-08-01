@@ -33,12 +33,6 @@ TFT_eSPI tft = TFT_eSPI();
 SPIClass touchSPI(HSPI);
 XPT2046_Touchscreen ts(TOUCH_CS_PIN);
 
-RF24 radio(RF_CE_PIN, RF_CSN_PIN);
-const byte rfAddress[6] = "00001";
-bool rfPronto = false;              // true se il modulo nRF24 e' stato rilevato correttamente
-unsigned long rfUltimoInvio = 0;
-int rfContatore = 0;
-
 // Stati del sistema: 0=Boot, 1=Menu Principale, 2=Menu Media, 3=Menu Help, 4=banana, 5=Humidifier
 int sistemaStato = 0; 
 bool humidifierAttivo = false; 
@@ -205,19 +199,7 @@ void onDataRecv(const uint8_t *mac, const uint8_t *data, int len) {
 }
 
 // --- FUNZIONI TEST nRF24L01 (usate solo nella schermata banana) ---
-void inviaTestRF24() {
-  if (!rfPronto) return;
 
-  rfContatore++;
-  char msg[32];
-  snprintf(msg, sizeof(msg), "Ping #%d", rfContatore);
-
-  bool ok = radio.write(&msg, sizeof(msg));
-
-  Serial.print("[RF24] Invio: ");
-  Serial.print(msg);
-  Serial.println(ok ? "  -> OK (ACK ricevuto)" : "  -> FALLITO (nessun ACK)");
-}
 
 // --- FUNZIONI GRAFICHE ---
 void drawAnimatedLogo() {
@@ -679,19 +661,7 @@ void setup() {
   // --- Inizializzazione nRF24L01 ---
   // Usa il bus SPI di default (VSPI: SCK18/MOSI23/MISO19), gia' avviato da TFT_eSPI,
   // con CE su GPIO21 e CSN su GPIO5 dedicati al modulo.
-  if (radio.begin()) {
-    rfPronto = true;
-    radio.setPALevel(RF24_PA_LOW);
-    radio.setDataRate(RF24_250KBPS);
-    radio.setChannel(76);
-    radio.openWritingPipe(rfAddress);
-    radio.openReadingPipe(1, rfAddress);
-    radio.stopListening();
-    Serial.println("[RF24] Modulo rilevato e pronto");
-  } else {
-    rfPronto = false;
-    Serial.println("[RF24] ERRORE: modulo non rilevato");
-  }
+  
 
   sistemaStato = 1;
   mostraMenuPrincipale();
@@ -731,12 +701,7 @@ void loop() {
   // Test antenna nRF24L01: invia un ping ogni secondo SOLO se si e' nella
   // schermata banana E lo stato e' ON (bananaAttivo). Se e' OFF, o se non si
   // e' ancora premuto ON, l'antenna resta silenziosa.
-  if (sistemaStato == 4 && bananaAttivo && rfPronto) {
-    if (millis() - rfUltimoInvio > 1000) {
-      inviaTestRF24();
-      rfUltimoInvio = millis();
-    }
-  }
+  
 
   // Animazione particelle di vapore nella schermata Humidifier
   if (sistemaStato == 5) {
@@ -922,7 +887,7 @@ void loop() {
 
             // L'antenna nRF24 parte SOLO ora, se e' stato premuto ON
             // BANANA attivo
-            if (bananaAttivo && rfPronto) {
+            if (bananaAttivo) {
               toggleSwitch.loop();  // MUST call the loop() function first
 
               if (toggleSwitch.isPressed())
