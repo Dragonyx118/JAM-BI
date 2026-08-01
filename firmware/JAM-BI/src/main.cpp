@@ -658,13 +658,10 @@ void setup() {
   touchSPI.begin(TOUCH_CLK_PIN, TOUCH_TDO_PIN, TOUCH_TDI_PIN, TOUCH_CS_PIN);
   ts.begin(touchSPI);
 
-  // --- Inizializzazione nRF24L01 ---
-  // Usa il bus SPI di default (VSPI: SCK18/MOSI23/MISO19), gia' avviato da TFT_eSPI,
-  // con CE su GPIO21 e CSN su GPIO5 dedicati al modulo.
-  
-
   sistemaStato = 1;
   mostraMenuPrincipale();
+
+  //inizializzazione antenna
   pinMode(33, INPUT_PULLUP);  // BUILD-IN RESISTOR
   esp_bt_controller_deinit();
   esp_wifi_stop();
