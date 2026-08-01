@@ -4,6 +4,7 @@
 #include <XPT2046_Touchscreen.h>
 #include <esp_now.h>
 #include <WiFi.h>
+#include <RF24.h>
 #include "logo_data.h"
 
 uint8_t slaveMac[] = {0x8C, 0x94, 0xDF, 0x8B, 0x51, 0xA4};
@@ -14,14 +15,24 @@ uint8_t slaveMac[] = {0x8C, 0x94, 0xDF, 0x8B, 0x51, 0xA4};
 #define TOUCH_TDI_PIN 13
 #define TOUCH_CLK_PIN 14
 
+// --- Pin nRF24L01 (condivide SCK/MOSI/MISO col TFT, CE/CSN dedicati) ---
+#define RF_CE_PIN   21
+#define RF_CSN_PIN  5
+
 TFT_eSPI tft = TFT_eSPI();
 SPIClass touchSPI(HSPI);
 XPT2046_Touchscreen ts(TOUCH_CS_PIN);
 
-// Stati del sistema: 0=Boot, 1=Menu Principale, 2=Menu Media, 3=Menu Help, 4=Jammer, 5=Humidifier
+RF24 radio(RF_CE_PIN, RF_CSN_PIN);
+const byte rfAddress[6] = "00001";
+bool rfPronto = false;              // true se il modulo nRF24 e' stato rilevato correttamente
+unsigned long rfUltimoInvio = 0;
+int rfContatore = 0;
+
+// Stati del sistema: 0=Boot, 1=Menu Principale, 2=Menu Media, 3=Menu Help, 4=banana, 5=Humidifier
 int sistemaStato = 0; 
 bool humidifierAttivo = false; 
-int bananaPotenza = 0; // 0=OFF, 1=Potenza1, 2=Potenza2+, 3=Potenza Massima
+bool bananaAttivo = false; // false=OFF, true=ON
 float faseOnda = 0.0;          // Fase corrente dell'onda (per l'animazione)
 unsigned long ultimoTremore = 0; // Timestamp ultimo aggiornamento tremolio
 
@@ -55,7 +66,7 @@ struct Pulsante {
 
 // Menu Principale (Grafica Originale)
 Pulsante menuPulsanti[4] = {
-  {20, 170, 280, 50, "JAMMER"},        
+  {20, 170, 280, 50, "Banana"},        
   {20, 240, 280, 50, "HUMIDIFIER"},
   {20, 310, 280, 50, "MEDIA"},
   {20, 380, 280, 50, "HELP"}
@@ -119,12 +130,10 @@ Pulsante pulsanteIndietroHelp = {20, 400, 280, 50, "INDIETRO"};
 // --- ELEMENTI PAGINA BANANA (ONDA + CONTROLLO POTENZA) ---
 Pulsante rettangoloOnda = {20, 50, 280, 200, ""}; // Riquadro dell'onda (circa meta' schermo)
 
-// 4 pulsanti potenza in una riga sotto il riquadro onda
-Pulsante bananaBtn[4] = {
-  {20,  280, 64, 60, "OFF"},
-  {92,  280, 64, 60, "POT 1"},
-  {164, 280, 64, 60, "POT 2+"},
-  {236, 280, 64, 60, "MAX"}
+// 2 pulsanti ON/OFF sotto il riquadro onda
+Pulsante bananaBtn[2] = {
+  {20,  280, 130, 60, "OFF"},
+  {170, 280, 130, 60, "ON"}
 };
 
 Pulsante btnIndietroBanana = {20, 360, 280, 50, "INDIETRO"};
@@ -139,6 +148,21 @@ void inviaAlSlave(uint8_t action, uint16_t value) {
 void onDataRecv(const uint8_t *mac, const uint8_t *data, int len) {
   memcpy(&cmdIn, data, sizeof(cmdIn));
   Serial.printf("[ESP-NOW] Dati dallo Slave: Action %d, Value %d\n", cmdIn.action, cmdIn.value);
+}
+
+// --- FUNZIONI TEST nRF24L01 (usate solo nella schermata banana) ---
+void inviaTestRF24() {
+  if (!rfPronto) return;
+
+  rfContatore++;
+  char msg[32];
+  snprintf(msg, sizeof(msg), "Ping #%d", rfContatore);
+
+  bool ok = radio.write(&msg, sizeof(msg));
+
+  Serial.print("[RF24] Invio: ");
+  Serial.print(msg);
+  Serial.println(ok ? "  -> OK (ACK ricevuto)" : "  -> FALLITO (nessun ACK)");
 }
 
 // --- FUNZIONI GRAFICHE ---
@@ -462,7 +486,7 @@ void mostraMenuHelp() {
   tft.drawString("  Scegli le tracce audio dalla SD.", 20, 230, 1);
   
   tft.setTextColor(TFT_GREEN, TFT_BLACK);
-  tft.drawString("- JAMMER:", 20, 270, 1);
+  tft.drawString("- banana:", 20, 270, 1);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.drawString("  Opzione futura di controllo.", 20, 295, 1);
 
@@ -495,23 +519,17 @@ void disegnaOnda() {
 
   int centroY = y + (h / 2);
 
-  if (bananaPotenza == 0) {
+  if (!bananaAttivo) {
     // OFF: linea piatta al centro
     tft.drawFastHLine(x + 4, centroY, w - 8, TFT_DARKGREY);
     return;
   }
 
-  // L'ampiezza cresce con la potenza: a MAX occupa quasi tutta la meta' del riquadro
+  // ON: ampiezza e frequenza fisse
   float ampiezzaMax = (h / 2.0) - 8;
-  float ampiezza = ampiezzaMax * (bananaPotenza / 3.0);
-
-  // Anche la frequenza aumenta leggermente per un effetto piu' "vivo" alle potenze alte
-  float frequenza = 1.5 + (bananaPotenza * 0.5);
-
-  uint16_t colore;
-  if (bananaPotenza == 1) colore = TFT_YELLOW;
-  else if (bananaPotenza == 2) colore = TFT_ORANGE;
-  else colore = TFT_RED;
+  float ampiezza = ampiezzaMax * 0.85;
+  float frequenza = 2.5;
+  uint16_t colore = TFT_GREEN;
 
   int prevX = x + 4;
   int prevY = centroY;
@@ -533,8 +551,9 @@ void disegnaOnda() {
 void disegnaPulsantiBanana() {
   tft.setTextDatum(MC_DATUM);
   tft.setTextSize(2);
-  for (int i = 0; i < 4; i++) {
-    uint16_t colore = (i == bananaPotenza) ? TFT_GREEN : TFT_WHITE;
+  for (int i = 0; i < 2; i++) {
+    bool selezionato = (i == 0 && !bananaAttivo) || (i == 1 && bananaAttivo);
+    uint16_t colore = selezionato ? TFT_GREEN : TFT_WHITE;
     tft.drawRect(bananaBtn[i].x, bananaBtn[i].y, bananaBtn[i].w, bananaBtn[i].h, colore);
     tft.setTextColor(colore, TFT_BLACK);
     tft.drawCentreString(bananaBtn[i].etichetta, bananaBtn[i].x + (bananaBtn[i].w / 2), bananaBtn[i].y + (bananaBtn[i].h / 2) - 4, 1);
@@ -549,7 +568,7 @@ void mostraMenuBanana() {
 
   tft.setTextColor(TFT_GREEN, TFT_BLACK);
   tft.setTextSize(3);
-  tft.drawCentreString("JAMMER", 160, 20, 1);
+  tft.drawCentreString("banana", 160, 20, 1);
   tft.drawFastHLine(20, 42, 280, TFT_GREEN);
   tft.setTextSize(1);
 
@@ -603,6 +622,23 @@ void setup() {
   touchSPI.begin(TOUCH_CLK_PIN, TOUCH_TDO_PIN, TOUCH_TDI_PIN, TOUCH_CS_PIN);
   ts.begin(touchSPI);
 
+  // --- Inizializzazione nRF24L01 ---
+  // Usa il bus SPI di default (VSPI: SCK18/MOSI23/MISO19), gia' avviato da TFT_eSPI,
+  // con CE su GPIO21 e CSN su GPIO5 dedicati al modulo.
+  if (radio.begin()) {
+    rfPronto = true;
+    radio.setPALevel(RF24_PA_LOW);
+    radio.setDataRate(RF24_250KBPS);
+    radio.setChannel(76);
+    radio.openWritingPipe(rfAddress);
+    radio.openReadingPipe(1, rfAddress);
+    radio.stopListening();
+    Serial.println("[RF24] Modulo rilevato e pronto");
+  } else {
+    rfPronto = false;
+    Serial.println("[RF24] ERRORE: modulo non rilevato");
+  }
+
   sistemaStato = 1;
   mostraMenuPrincipale();
 }
@@ -621,11 +657,21 @@ void loop() {
 
   // Animazione tremolio onda Banana: si aggiorna da sola quando la potenza e' attiva,
   // indipendentemente dal touch, cosi' l'onda "vive" mentre e' accesa.
-  if (sistemaStato == 4 && bananaPotenza != 0) {
+  if (sistemaStato == 4 && bananaAttivo) {
     if (millis() - ultimoTremore > 90) {
       faseOnda += 0.35;
       disegnaOnda();
       ultimoTremore = millis();
+    }
+  }
+
+  // Test antenna nRF24L01: invia un ping ogni secondo SOLO se si e' nella
+  // schermata banana E lo stato e' ON (bananaAttivo). Se e' OFF, o se non si
+  // e' ancora premuto ON, l'antenna resta silenziosa.
+  if (sistemaStato == 4 && bananaAttivo && rfPronto) {
+    if (millis() - rfUltimoInvio > 1000) {
+      inviaTestRF24();
+      rfUltimoInvio = millis();
     }
   }
 
@@ -670,9 +716,10 @@ void loop() {
               y_mappato >= menuPulsanti[i].y && y_mappato <= (menuPulsanti[i].y + menuPulsanti[i].h)) {
             
             if (i == 0) {
-              Serial.println("JAMMER PREMUTO");
+              Serial.println("banana PREMUTO");
               sistemaStato = 4;
               mostraMenuBanana();
+              // L'antenna nRF24 resta ferma: parte solo quando si preme ON
             } 
             else if (i == 1) {
               // Apre la nuova schermata dedicata all'humidifier invece di attivarlo direttamente
@@ -799,16 +846,23 @@ void loop() {
       else if (sistemaStato == 4) {
         bool azionato = false;
 
-        // 1. Controlla i 4 pulsanti di potenza
-        for (int i = 0; i < 4; i++) {
+        // 1. Controlla i 2 pulsanti ON/OFF
+        for (int i = 0; i < 2; i++) {
           if (x_mappato >= bananaBtn[i].x && x_mappato <= (bananaBtn[i].x + bananaBtn[i].w) &&
               y_mappato >= bananaBtn[i].y && y_mappato <= (bananaBtn[i].y + bananaBtn[i].h)) {
-            bananaPotenza = i; // 0=OFF, 1=POT1, 2=POT2+, 3=MAX
-            inviaAlSlave(5, bananaPotenza); // Action 5: Potenza Banana
-            Serial.printf("JAMMER potenza impostata: %d\n", bananaPotenza);
+            bananaAttivo = (i == 1); // i==0 -> OFF, i==1 -> ON
+            inviaAlSlave(5, bananaAttivo ? 1 : 0); // Action 5: stato Banana
+            Serial.printf("banana stato: %s\n", bananaAttivo ? "ON" : "OFF");
 
             disegnaPulsantiBanana(); // Aggiorna evidenziazione pulsante attivo
-            disegnaOnda();           // Aggiorna l'onda in base alla nuova potenza
+            disegnaOnda();           // Aggiorna l'onda in base al nuovo stato
+
+            // L'antenna nRF24 parte SOLO ora, se e' stato premuto ON
+            if (bananaAttivo && rfPronto) {
+              rfContatore = 0;
+              rfUltimoInvio = millis();
+              inviaTestRF24(); // primo ping immediato
+            }
 
             azionato = true;
             break;
