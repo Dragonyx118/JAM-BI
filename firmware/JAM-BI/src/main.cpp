@@ -905,32 +905,31 @@ void loop() {
 
 // 4. Implementation of functions
 void initAntennaAndJamming() {
-  // Initialize RF24
   if (radio.begin()) {
     Serial.println("Modulo RF24 trovato!");
-  } 
-  if (!radio.begin()) {
-  Serial.println("RF24 module failed to initialize!");
+  } else {
+    Serial.println("RF24 module failed to initialize!");
   }
-
   delay(1000);
 
-  // Configure RF24 for jamming
   radio.setAutoAck(false);
   radio.stopListening();
   radio.setRetries(0, 0);
   radio.setPayloadSize(5);
-  radio.setAddressWidth(3);
+  radio.setAddressWidth(6); // Match 6-byte slave address
+  radio.openWritingPipe(slaveMac); // Open writing pipe with slave address
   radio.setPALevel(RF24_PA_MAX, true);
   radio.setDataRate(RF24_2MBPS);
   radio.setCRCLength(RF24_CRC_DISABLED);
   Serial.println("Antenna configurata.");
 }
 
+
 void startJamming() {
-  radio.startConstCarrier(RF24_PA_MAX, i);
+  radio.startConstCarrier(RF24_PA_MAX, i); // i is the channel (45)
   Serial.println("Portante continua avviata...");
 }
+
 
 void stopJamming() {
   radio.stopConstCarrier();
