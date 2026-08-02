@@ -42,7 +42,6 @@ float faseOnda = 0.0;          // Fase corrente dell'onda (per l'animazione)
 unsigned long ultimoTremore = 0; // Timestamp ultimo aggiornamento tremolio
 
 // --- VARIABILI SCHERMATA HUMIDIFIER ---
-// --- VARIABILI SCHERMATA HUMIDIFIER ---
 int humidifierTimerIndex = 0;                 // Indice del preset timer selezionato
 const int humidifierPresets[5] = {0, 5, 10, 15, 30}; // Secondi ridotti (0 = infinito)
 const char* humidifierPresetLabel[5] = {"INFINITO", "5 sec", "10 sec", "15 sec", "30 sec"};
@@ -84,7 +83,7 @@ Pulsante btnHumTimer = {30, 325, 260, 50, "TIMER"};
 Pulsante btnHumBack  = {30, 390, 260, 50, "INDIETRO"};
 
 // ==========================================
-// GESTIONE TRACCE E PAGINAZIONE (119 TRACCE)
+// GESTIONE TRACCE E PAGINAZIONE (152 TRACCE)
 // ==========================================
 const char* listaTracce[] = {
   "01. AAH 01", "02. DINOSAUR", "03. FART", "04. GAY 04", "05. MIBOMBOO 05",
@@ -110,7 +109,14 @@ const char* listaTracce[] = {
   "101. OHIOSONG 101", "102. PEPEPEPERE 102", "103. SLIPPINGBANANA 103", "104. ABUSODIPOTEREDI**NE 104", "105. DEJAAVU 105",
   "106. PERFECTCELL 106", "107. SONOUNESSEREUMANOTRANSFORMER 107", "108. TROMBAMILITARE 108", "109. TUNGTUNGSAHUR 109", "110. WE'LLBETHERE 110",
   "111. WETFART 111", "112. WHATISDIDDYBLUDDOING 112", "113. MASTEREPSTIEN 113", "114. DIDDYBLUD 114", "115. WHATINTHEACTUALFUCK 115",
-  "116. JEWISH 116", "117. YOUWILLNEVERBREATHAGAIN 117"
+  "116. JEWISH 116", "117. YOUWILLNEVERBREATHAGAIN 117",
+  "118. UNDERTALELAUGH", "119. AAAAAAAAAAAAAAA", "120. ?", "121. lalalalala", "122. WOMANSCREAM",
+  "123. EVILLAUGH", "124. TOCTOCK", "125. ?", "126. MANSCREAM", "127. SIRENHEAD",
+  "128. LEPAPERE", "129. SVEGLIATIESTATE", "130. ERRORBUTTON", "131. CORRECTBUTTON", "132. GUGUGAGA",
+  "133. PROWLER", "134. CABUMCABLAU", "135. ZZZZZZZZZ", "136. BEEEEEEEEEP", "137. WHATWILLUHAVE",
+  "138. FART2", "139. HAHAHAHAH", "140. IMCONQUESTINGIT", "141. MAXVERSTAPPEN", "142. HOGRIDER",
+  "143. CESALT", "144. FNAFSCARY", "145. LAUGH", "146. ALLARMESIRENA", "147. GUTESCUTENU",
+  "148. IJUSTHITHTEJECKPOT", "149. METALPIPE", "150. THINKMARK", "151. SHOTGUN", "152. "
 };
 #define TOT_TRACCE (sizeof(listaTracce) / sizeof(listaTracce[0]))
 
@@ -124,10 +130,14 @@ Pulsante btnVolGiu = {20, 325, 80, 40, "VOL -"};
 Pulsante btnStop   = {120, 325, 80, 40, "STOP"};
 Pulsante btnVolSu  = {220, 325, 80, 40, "VOL +"};
 
-// Pulsanti Navigazione Pagine (Riga 2)
-Pulsante btnSu            = {20, 380, 80, 40, "SU"};
-Pulsante btnGiu           = {120, 380, 80, 40, "GIU"};
-Pulsante btnIndietroMedia = {220, 380, 80, 40, "BACK"};
+// Pulsanti Navigazione Pagine (Riga 2) - con salto veloce
+Pulsante btnSaltaSu = {20, 380, 130, 40, "<<5"};
+Pulsante btnSu      = {160, 380, 60, 40, "SU"};
+Pulsante btnGiu     = {230, 380, 60, 40, "GIU"};
+
+// Riga 3: salto avanti + back
+Pulsante btnSaltaGiu      = {20, 430, 130, 40, ">>5"};
+Pulsante btnIndietroMedia = {160, 430, 130, 40, "BACK"};
 
 // Pulsante universale per HELP
 Pulsante pulsanteIndietroHelp = {20, 400, 280, 50, "INDIETRO"};
@@ -154,9 +164,6 @@ void onDataRecv(const uint8_t *mac, const uint8_t *data, int len) {
   memcpy(&cmdIn, data, sizeof(cmdIn));
   Serial.printf("[ESP-NOW] Dati dallo Slave: Action %d, Value %d\n", cmdIn.action, cmdIn.value);
 }
-
-// --- FUNZIONI TEST nRF24L01 (usate solo nella schermata banana) ---
-
 
 // --- FUNZIONI GRAFICHE ---
 void drawAnimatedLogo() {
@@ -219,36 +226,6 @@ void mostraMenuPrincipale() {
 // SCHERMATA HUMIDIFIER: icona pixel-art + ON/OFF + TIMER
 // ==========================================================
 
-// ---- Coordinate dell'icona (facili da ritoccare a mano se sul display reale
-//      qualcosa risultasse leggermente storto o sovrapposto) ----
-#define HUM_BASE_X   50
-#define HUM_BASE_Y   208
-#define HUM_BASE_W   220
-#define HUM_BASE_H   16
-
-#define HUM_PCB_X    122
-#define HUM_PCB_Y    182
-#define HUM_PCB_W    72
-#define HUM_PCB_H    30
-
-#define HUM_BODY_X   140
-#define HUM_BODY_Y   118
-#define HUM_BODY_W   50
-#define HUM_BODY_H   45
-
-#define HUM_ROD_STARTX 178
-#define HUM_ROD_STARTY 130
-#define HUM_ROD_STEPS  8
-#define HUM_ROD_DX     -7.2
-#define HUM_ROD_DY     -8.7
-#define HUM_ROD_SIZE   15
-
-#define HUM_CAP_R      15
-
-// Disegna l'icona del diffusore ispirata alla foto: base in legno, schedina con
-// filo rosso, corpo nero, bastoncino bianco a gradini e cappuccio nero del
-// trasduttore ben visibile in cima.
-// --- Nuove coordinate (sostituiscono i vecchi HUM_BODY_*, HUM_ROD_*, HUM_CAP_R) ---
 #define HUM_CAP_X      160   // centro X di cappuccio+bastoncino
 #define HUM_CAP_TOP_Y  85   // Y superiore del cappuccio nero
 #define HUM_CAP_W      60
@@ -281,13 +258,8 @@ void disegnaIconaUmidificatore() {
   // Fessura ovale centrale visibile sul cappuccio nella foto
   tft.fillRoundRect(HUM_CAP_X - 4, HUM_CAP_TOP_Y + 6, 8, HUM_CAP_H - 14, 4, tft.color565(20, 20, 20));
   tft.drawRoundRect(HUM_CAP_X - 4, HUM_CAP_TOP_Y + 6, 8, HUM_CAP_H - 14, 4, tft.color565(70, 70, 70));
-
-  
 }
 
-// Aggiorna l'animazione delle particelle facendole uscire dal cappuccio nero,
-// senza mai intaccare l'icona statica sottostante (zona di pulizia ristretta
-// alla sola area sopra il cappuccio).
 struct Particella {
   float x, y;
   float velocita;
@@ -438,7 +410,11 @@ void mostraMenuMedia() {
   tft.setTextColor(TFT_YELLOW, TFT_BLACK);
   tft.drawCentreString(btnVolSu.etichetta, btnVolSu.x + (btnVolSu.w/2), btnVolSu.y + (btnVolSu.h/2) - 2, 1);
 
-  // Riga 2 Navigazione: SU, GIU, BACK
+  // Riga 2 Navigazione: <<5, SU, GIU
+  tft.drawRect(btnSaltaSu.x, btnSaltaSu.y, btnSaltaSu.w, btnSaltaSu.h, TFT_CYAN);
+  tft.setTextColor(TFT_CYAN, TFT_BLACK);
+  tft.drawCentreString(btnSaltaSu.etichetta, btnSaltaSu.x + (btnSaltaSu.w/2), btnSaltaSu.y + (btnSaltaSu.h/2) - 2, 1);
+
   tft.drawRect(btnSu.x, btnSu.y, btnSu.w, btnSu.h, TFT_WHITE);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.drawCentreString(btnSu.etichetta, btnSu.x + (btnSu.w/2), btnSu.y + (btnSu.h/2) - 2, 1);
@@ -446,6 +422,11 @@ void mostraMenuMedia() {
   tft.drawRect(btnGiu.x, btnGiu.y, btnGiu.w, btnGiu.h, TFT_WHITE);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.drawCentreString(btnGiu.etichetta, btnGiu.x + (btnGiu.w/2), btnGiu.y + (btnGiu.h/2) - 2, 1);
+
+  // Riga 3 Navigazione: >>5, BACK
+  tft.drawRect(btnSaltaGiu.x, btnSaltaGiu.y, btnSaltaGiu.w, btnSaltaGiu.h, TFT_CYAN);
+  tft.setTextColor(TFT_CYAN, TFT_BLACK);
+  tft.drawCentreString(btnSaltaGiu.etichetta, btnSaltaGiu.x + (btnSaltaGiu.w/2), btnSaltaGiu.y + (btnSaltaGiu.h/2) - 2, 1);
 
   tft.drawRect(btnIndietroMedia.x, btnIndietroMedia.y, btnIndietroMedia.w, btnIndietroMedia.h, TFT_RED);
   tft.setTextColor(TFT_RED, TFT_BLACK);
@@ -500,25 +481,21 @@ void mostraMenuHelp() {
 
 // --- PAGINA BANANA: ONDA OSCILLOSCOPIO + CONTROLLO POTENZA ---
 
-// Disegna solo l'onda dentro il riquadro (senza ridisegnare tutta la pagina)
 void disegnaOnda() {
   int x = rettangoloOnda.x;
   int y = rettangoloOnda.y;
   int w = rettangoloOnda.w;
   int h = rettangoloOnda.h;
 
-  // Pulisce l'interno del riquadro lasciando intatto il bordo
   tft.fillRect(x + 2, y + 2, w - 4, h - 4, TFT_BLACK);
 
   int centroY = y + (h / 2);
 
   if (!bananaAttivo) {
-    // OFF: linea piatta al centro
     tft.drawFastHLine(x + 4, centroY, w - 8, TFT_DARKGREY);
     return;
   }
 
-  // ON: ampiezza e frequenza fisse
   float ampiezzaMax = (h / 2.0) - 8;
   float ampiezza = ampiezzaMax * 0.85;
   float frequenza = 2.5;
@@ -529,7 +506,6 @@ void disegnaOnda() {
   for (int px = x + 4; px <= x + w - 4; px++) {
     float t = (float)(px - x) / w;
 
-    // Onda base + tremolio: piccolo rumore casuale che varia ad ogni aggiornamento
     float tremore = (random(-100, 101) / 100.0) * (ampiezzaMax * 0.06);
     float valore = sin(t * frequenza * 2 * PI + faseOnda) * ampiezza + tremore;
 
@@ -540,7 +516,6 @@ void disegnaOnda() {
   }
 }
 
-// Disegna i 4 pulsanti di potenza, evidenziando in verde quello attivo
 void disegnaPulsantiBanana() {
   tft.setTextDatum(MC_DATUM);
   tft.setTextSize(2);
@@ -554,7 +529,6 @@ void disegnaPulsantiBanana() {
   tft.setTextSize(1);
 }
 
-// Schermata completa della pagina Banana
 void mostraMenuBanana() {
   tft.fillScreen(TFT_BLACK);
   tft.setTextDatum(MC_DATUM);
@@ -565,14 +539,11 @@ void mostraMenuBanana() {
   tft.drawFastHLine(20, 42, 280, TFT_GREEN);
   tft.setTextSize(1);
 
-  // Riquadro contenitore dell'onda
   tft.drawRect(rettangoloOnda.x, rettangoloOnda.y, rettangoloOnda.w, rettangoloOnda.h, TFT_WHITE);
   disegnaOnda();
 
-  // Pulsanti potenza
   disegnaPulsantiBanana();
 
-  // Pulsante BACK
   tft.setTextSize(3);
   tft.drawRect(btnIndietroBanana.x, btnIndietroBanana.y, btnIndietroBanana.w, btnIndietroBanana.h, TFT_RED);
   tft.setTextColor(TFT_RED, TFT_BLACK);
@@ -623,8 +594,9 @@ void setup() {
 }
 
 void loop() {
-  // Spegnimento automatico dell'humidifier se il timer e' scaduto (attivo indipendentemente
-  // dalla schermata in cui ci si trova, per sicurezza).
+  int ritardoTocco = 180; // debounce di default dopo ogni tocco valido
+
+  // Spegnimento automatico dell'humidifier se il timer e' scaduto
   if (humidifierAttivo && humidifierTimerSec > 0) {
     if (millis() - humidifierAccensioneMillis >= (unsigned long)humidifierTimerSec * 1000UL) {
       humidifierAttivo = false;
@@ -634,8 +606,7 @@ void loop() {
     }
   }
 
-  // Animazione tremolio onda Banana: si aggiorna da sola quando la potenza e' attiva,
-  // indipendentemente dal touch, cosi' l'onda "vive" mentre e' accesa.
+  // Animazione tremolio onda Banana
   if (sistemaStato == 4 && bananaAttivo) {
     if (millis() - ultimoTremore > 90) {
       faseOnda += 0.35;
@@ -643,11 +614,6 @@ void loop() {
       ultimoTremore = millis();
     }
   }
-
-  // Test antenna nRF24L01: invia un ping ogni secondo SOLO se si e' nella
-  // schermata banana E lo stato e' ON (bananaAttivo). Se e' OFF, o se non si
-  // e' ancora premuto ON, l'antenna resta silenziosa.
-  
 
   // Animazione particelle di vapore nella schermata Humidifier
   if (sistemaStato == 5) {
@@ -660,10 +626,8 @@ void loop() {
   if (ts.touched()) {
     TS_Point p = ts.getPoint();
 
-    // FILTRO TOUCH: Ignora tocchi troppo leggeri (rumore elettrico)
     if (p.z > 300 && p.z < 3800) {
       
-      // MEDIA CAMPIONATA SU 3 LETTURE: Elimina salti imprevedibili del cursore
       int sumX = p.x, sumY = p.y;
       for (int k = 0; k < 2; k++) {
         TS_Point pTemp = ts.getPoint();
@@ -673,11 +637,9 @@ void loop() {
       int xGrezzo = sumY / 3; 
       int yGrezzo = sumX / 3;
 
-      // MAPPATURA ORIENTAMENTO DISPLAY
       int x_mappato = map(xGrezzo, 200, 3800, 320, 0); 
       int y_mappato = map(yGrezzo, 200, 3800, 0, 480); 
 
-      // Mantiene le coordinate nei limiti fisici dello schermo
       x_mappato = constrain(x_mappato, 0, 320);
       y_mappato = constrain(y_mappato, 0, 480);
 
@@ -693,10 +655,8 @@ void loop() {
               Serial.println("banana PREMUTO");
               sistemaStato = 4;
               mostraMenuBanana();
-              // L'antenna nRF24 resta ferma: parte solo quando si preme ON
             } 
             else if (i == 1) {
-              // Apre la nuova schermata dedicata all'humidifier invece di attivarlo direttamente
               sistemaStato = 5;
               mostraMenuHumidifier();
             }
@@ -719,7 +679,6 @@ void loop() {
       // ==========================================
       else if (sistemaStato == 2) {
         
-        // 1. Controlla selezione tracce visibili
         int startY = 50;
         int boxH = 44;
         int spacing = 8;
@@ -735,7 +694,6 @@ void loop() {
             tracciaSelezionata = tracciaIndice;
             Serial.printf("Riproduco traccia lista: %d (%s)\n", tracciaIndice, listaTracce[tracciaIndice]);
             
-            // OFFSET +2: Invia valore 2 allo Slave per la prima traccia
             inviaAlSlave(1, tracciaIndice + 2); 
             
             mostraMenuMedia();
@@ -751,7 +709,7 @@ void loop() {
             if (volumeAttuale > 0) {
               volumeAttuale -= 2;
               if (volumeAttuale < 0) volumeAttuale = 0;
-              inviaAlSlave(3, volumeAttuale); // Action 3: Volume
+              inviaAlSlave(3, volumeAttuale);
               Serial.printf("Volume inviato: %d\n", volumeAttuale);
             }
           }
@@ -760,7 +718,7 @@ void loop() {
           else if (x_mappato >= btnStop.x && x_mappato <= (btnStop.x + btnStop.w) &&
                    y_mappato >= btnStop.y && y_mappato <= (btnStop.y + btnStop.h)) {
             tracciaSelezionata = -1;
-            inviaAlSlave(4, 0); // Action 4: Stop
+            inviaAlSlave(4, 0);
             Serial.println("Comando STOP inviato");
             mostraMenuMedia();
           }
@@ -771,30 +729,51 @@ void loop() {
             if (volumeAttuale < 30) {
               volumeAttuale += 2;
               if (volumeAttuale > 30) volumeAttuale = 30;
-              inviaAlSlave(3, volumeAttuale); // Action 3: Volume
+              inviaAlSlave(3, volumeAttuale);
               Serial.printf("Volume inviato: %d\n", volumeAttuale);
             }
           }
 
-          // 5. Controlla SU (Cambia Pagina Indietro)
+          // 5. Controlla SALTA SU (indietro di 5 pagine = 25 tracce)
+          else if (x_mappato >= btnSaltaSu.x && x_mappato <= (btnSaltaSu.x + btnSaltaSu.w) &&
+                   y_mappato >= btnSaltaSu.y && y_mappato <= (btnSaltaSu.y + btnSaltaSu.h)) {
+            scrollOffset -= TRACCE_PER_PAGINA * 5;
+            if (scrollOffset < 0) scrollOffset = 0;
+            mostraMenuMedia();
+            ritardoTocco = 80;
+          }
+
+          // 6. Controlla SU (Cambia Pagina Indietro)
           else if (x_mappato >= btnSu.x && x_mappato <= (btnSu.x + btnSu.w) &&
                    y_mappato >= btnSu.y && y_mappato <= (btnSu.y + btnSu.h)) {
             if (scrollOffset >= TRACCE_PER_PAGINA) {
               scrollOffset -= TRACCE_PER_PAGINA;
               mostraMenuMedia();
             }
+            ritardoTocco = 80;
           }
           
-          // 6. Controlla GIU (Cambia Pagina Avanti)
+          // 7. Controlla GIU (Cambia Pagina Avanti)
           else if (x_mappato >= btnGiu.x && x_mappato <= (btnGiu.x + btnGiu.w) &&
                    y_mappato >= btnGiu.y && y_mappato <= (btnGiu.y + btnGiu.h)) {
             if (scrollOffset + TRACCE_PER_PAGINA < TOT_TRACCE) {
               scrollOffset += TRACCE_PER_PAGINA;
               mostraMenuMedia();
             }
+            ritardoTocco = 80;
           }
 
-          // 7. Controlla BACK
+          // 8. Controlla SALTA GIU (avanti di 5 pagine = 25 tracce)
+          else if (x_mappato >= btnSaltaGiu.x && x_mappato <= (btnSaltaGiu.x + btnSaltaGiu.w) &&
+                   y_mappato >= btnSaltaGiu.y && y_mappato <= (btnSaltaGiu.y + btnSaltaGiu.h)) {
+            int maxOffset = ((TOT_TRACCE - 1) / TRACCE_PER_PAGINA) * TRACCE_PER_PAGINA;
+            scrollOffset += TRACCE_PER_PAGINA * 5;
+            if (scrollOffset > maxOffset) scrollOffset = maxOffset;
+            mostraMenuMedia();
+            ritardoTocco = 80;
+          }
+
+          // 9. Controlla BACK
           else if (x_mappato >= btnIndietroMedia.x && x_mappato <= (btnIndietroMedia.x + btnIndietroMedia.w) &&
                    y_mappato >= btnIndietroMedia.y && y_mappato <= (btnIndietroMedia.y + btnIndietroMedia.h)) {
             sistemaStato = 1;
@@ -820,19 +799,16 @@ void loop() {
       else if (sistemaStato == 4) {
         bool azionato = false;
 
-        // 1. Controlla i 2 pulsanti ON/OFF
         for (int i = 0; i < 2; i++) {
           if (x_mappato >= bananaBtn[i].x && x_mappato <= (bananaBtn[i].x + bananaBtn[i].w) &&
               y_mappato >= bananaBtn[i].y && y_mappato <= (bananaBtn[i].y + bananaBtn[i].h)) {
-            bananaAttivo = (i == 1); // i==0 -> OFF, i==1 -> ON
-            inviaAlSlave(5, bananaAttivo ? 1 : 0); // Action 5: stato Banana
+            bananaAttivo = (i == 1);
+            inviaAlSlave(5, bananaAttivo ? 1 : 0);
             Serial.printf("banana stato: %s\n", bananaAttivo ? "ON" : "OFF");
 
-            disegnaPulsantiBanana(); // Aggiorna evidenziazione pulsante attivo
-            disegnaOnda();           // Aggiorna l'onda in base al nuovo stato
+            disegnaPulsantiBanana();
+            disegnaOnda();
 
-            // L'antenna nRF24 parte SOLO ora, se e' stato premuto ON
-            // BANANA attivo
             if (bananaAttivo) {
               startJamming();
             }
@@ -845,7 +821,6 @@ void loop() {
           }
         }
 
-        // 2. Controlla BACK
         if (!azionato) {
           if (x_mappato >= btnIndietroBanana.x && x_mappato <= (btnIndietroBanana.x + btnIndietroBanana.w) &&
               y_mappato >= btnIndietroBanana.y && y_mappato <= (btnIndietroBanana.y + btnIndietroBanana.h)) {
@@ -859,7 +834,6 @@ void loop() {
       // LOGICA STATO 5: SCHERMATA HUMIDIFIER (ON/OFF + TIMER)
       // ==========================================
       else if (sistemaStato == 5) {
-        // 1. Bottone ON
         if (x_mappato >= btnHumOn.x && x_mappato <= (btnHumOn.x + btnHumOn.w) &&
             y_mappato >= btnHumOn.y && y_mappato <= (btnHumOn.y + btnHumOn.h)) {
           humidifierAttivo = true;
@@ -869,7 +843,6 @@ void loop() {
           mostraMenuHumidifier();
         }
 
-        // 2. Bottone OFF
         else if (x_mappato >= btnHumOff.x && x_mappato <= (btnHumOff.x + btnHumOff.w) &&
                  y_mappato >= btnHumOff.y && y_mappato <= (btnHumOff.y + btnHumOff.h)) {
           humidifierAttivo = false;
@@ -878,18 +851,15 @@ void loop() {
           mostraMenuHumidifier();
         }
 
-        // 3. Bottone TIMER (cicla tra i preset)
         else if (x_mappato >= btnHumTimer.x && x_mappato <= (btnHumTimer.x + btnHumTimer.w) &&
                  y_mappato >= btnHumTimer.y && y_mappato <= (btnHumTimer.y + btnHumTimer.h)) {
           humidifierTimerIndex = (humidifierTimerIndex + 1) % 5;
           humidifierTimerSec = humidifierPresets[humidifierTimerIndex];
-          // Se e' gia' acceso, il countdown riparte da zero con il nuovo timer scelto
           if (humidifierAttivo) humidifierAccensioneMillis = millis();
           Serial.printf("Timer humidifier impostato: %s\n", humidifierPresetLabel[humidifierTimerIndex]);
           mostraMenuHumidifier();
         }
 
-        // 4. Bottone BACK
         else if (x_mappato >= btnHumBack.x && x_mappato <= (btnHumBack.x + btnHumBack.w) &&
                  y_mappato >= btnHumBack.y && y_mappato <= (btnHumBack.y + btnHumBack.h)) {
           sistemaStato = 1;
@@ -897,7 +867,7 @@ void loop() {
         }
       }
 
-      delay(180); // Ritardo anti-rimbalzo ottimizzato
+      delay(ritardoTocco); // Ritardo anti-rimbalzo (piu' corto per la navigazione veloce)
     }
   }
 }
@@ -915,22 +885,18 @@ void initAntennaAndJamming() {
   radio.stopListening();
   radio.setRetries(0, 0);
   radio.setPayloadSize(5);
-  radio.setAddressWidth(6); // Match 6-byte slave address
-  radio.openWritingPipe(slaveMac); // Open writing pipe with slave address
-  radio.setPALevel(RF24_PA_HIGH, true); // Strong enough for jamming
+  radio.setAddressWidth(6);
+  radio.openWritingPipe(slaveMac);
+  radio.setPALevel(RF24_PA_HIGH, true);
   radio.setDataRate(RF24_2MBPS);
   radio.setCRCLength(RF24_CRC_DISABLED);
   Serial.println("Antenna configurata.");
 }
 
-
-
 void startJamming() {
-  radio.startConstCarrier(RF24_PA_HIGH, i); // Use updated power level and channel
+  radio.startConstCarrier(RF24_PA_HIGH, i);
   Serial.println("Portante continua avviata...");
 }
-
-
 
 void stopJamming() {
   radio.stopConstCarrier();
