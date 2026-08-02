@@ -3,7 +3,7 @@
 #include <HardwareSerial.h>
 #include <DFRobotDFPlayerMini.h>
 
-#define RELAY_PIN 4       // Pin del relè umidificatore
+#define RELAY_PIN 25       // Pin del relè umidificatore
 #define RXD2 27           // RX ESP32 <- TX DFPlayer
 #define TXD2 26           // TX ESP32 -> RX DFPlayer (resistenza 1k in serie)
 
