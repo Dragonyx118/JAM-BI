@@ -6,14 +6,13 @@
 #include <WiFi.h>
 #include <RF24.h>
 #include "logo_data.h"
-#include "RF24.h"
 #include <ezButton.h>
 #include "esp_bt.h"
 #include "esp_wifi.h"
 
 // 1. Global declarations
 RF24 radio(21, 5); // CE, CSN (ensure these pins are free)
-uint8_t i = 45;     // Channel for jamming
+uint8_t i = 1;     // Channel for jamming
 
 void initAntennaAndJamming();
 void startJamming();
@@ -918,17 +917,19 @@ void initAntennaAndJamming() {
   radio.setPayloadSize(5);
   radio.setAddressWidth(6); // Match 6-byte slave address
   radio.openWritingPipe(slaveMac); // Open writing pipe with slave address
-  radio.setPALevel(RF24_PA_MAX, true);
+  radio.setPALevel(RF24_PA_HIGH, true); // Strong enough for jamming
   radio.setDataRate(RF24_2MBPS);
   radio.setCRCLength(RF24_CRC_DISABLED);
   Serial.println("Antenna configurata.");
 }
 
 
+
 void startJamming() {
-  radio.startConstCarrier(RF24_PA_MAX, i); // i is the channel (45)
+  radio.startConstCarrier(RF24_PA_HIGH, i); // Use updated power level and channel
   Serial.println("Portante continua avviata...");
 }
+
 
 
 void stopJamming() {
