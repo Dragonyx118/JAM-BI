@@ -12,7 +12,7 @@
 #include "esp_wifi.h"
 
 // 1. Global declarations
-RF24 radio(22, 21); // CE, CSN (ensure these pins are free)
+RF24 radio(21, 5); // CE, CSN (ensure these pins are free)
 uint8_t i = 45;     // Channel for jamming
 
 void initAntennaAndJamming();
